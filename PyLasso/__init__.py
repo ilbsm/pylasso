@@ -3522,6 +3522,51 @@ class PyLassoLinux(PyLassoBase):
 
 
 class PyLassoWindows(PyLassoBase):
+    def __init__(self, app):
+
+        self.parent = app.root
+        if cmd.get_version()[1] < 2.0:
+            self.is_pymol_2 = False
+            self.bold_font = Font(family="Helvetica", size=8, weight="bold")
+            self.subscript_font = Font(family="Helvetica", size=8)
+            self.row_name_size = "Helvetica 10"
+            self.traj_charts_size = (8, 4)
+        else:
+            self.is_pymol_2 = True
+            self.parent.option_add("*Font", "Helvetica 8")
+            self.bold_font = Font(family="Helvetica", size=7, weight="bold")
+            self.subscript_font = Font(family="Helvetica", size=7)
+            self.row_name_size = "Helvetica 8"
+            self.traj_charts_size = (6.5, 4)
+
+        # Trajectory and single structure variables
+        self.screen_height = self.parent.winfo_screenheight()
+        self.screen_width = self.parent.winfo_screenwidth()
+        self._filename = ""
+        self._file_extension = ""
+        self._img_extension = ".gif"
+        self.program_execution = plugin_path + os.sep + "detect_lassos.exe "
+        self.python_compiler = 'pythonw.exe ' + plugin_path + os.sep + 'convert_pdb_2_5columns.py'
+        self.img_button_height = 16
+        self.img_button_width = 60
+        self.view_btn_width = 5
+        self.extend_clear_btns_width = 8
+        self.retrieve_btns_width = 11
+        self.retrieve_btns_pad = 2
+        self.table_name_width = 11
+        self.gln_figsize = 6
+        self.gln_dpi = 70
+        self.hull_width = 880
+        self.lassos = []
+        self.hint_width = 60
+        # Advanced variables
+        self.is_stable = tk.IntVar()
+        self.is_bad_caca_enabled = tk.IntVar()
+        self.is_gln_checkbutton_selected = tk.IntVar()
+
+        self.previous_bond_in_view = ["", ""]
+
+        self.load_file()
 
     def get_python_exec(self):
         if sys.version_info.major == 3:
