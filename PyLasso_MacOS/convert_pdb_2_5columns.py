@@ -320,7 +320,7 @@ class Chain:
     ######### printing data
     def chain_print(self, PDB, four):
         output_file = open(PDB + "_" + self.name + ".xyz", 'w')
-        print self.check_gaps()
+        print(self.check_gaps())
         if (len(self.residues) == self.length):
             for k in range(min(self.length, len(self.coordinates))):
                 if (self.coordinates[k][1] != []) and (four == False):
@@ -368,14 +368,14 @@ class Chain:
     def commands_print(self, PDB, flag=0):
         for k in range(len(self.bridges)):
             if (flag == 1):
-                print self.bridges[k][0] + " ./surfacesMyOrient " + PDB + "_" + self.name + ".xyz " + str(
-                    self.bridges[k][3]) + " " + str(self.bridges[k][6]) + " 0 0"
+                print(self.bridges[k][0] + " ./surfacesMyOrient " + PDB + "_" + self.name + ".xyz " + str(
+                    self.bridges[k][3]) + " " + str(self.bridges[k][6]) + " 0 0")
             if (flag == 2):
-                print self.bridges[k][0] + " " + PDB + "_" + self.name + " " + str(self.bridges[k][3]) + " " + str(
-                    self.bridges[k][6])
+                print(self.bridges[k][0] + " " + PDB + "_" + self.name + " " + str(self.bridges[k][3]) + " " + str(
+                    self.bridges[k][6]))
             else:
-                print "./surfacesMyOrient " + PDB + "_" + self.name + ".xyz " + str(self.bridges[k][3]) + " " + str(
-                    self.bridges[k][6]) + " 0 0"
+                print("./surfacesMyOrient " + PDB + "_" + self.name + ".xyz " + str(self.bridges[k][3]) + " " + str(
+                    self.bridges[k][6]) + " 0 0")
                 ######### finding distance between residues
 
     def find_distance(self, res1, res2):
@@ -384,7 +384,7 @@ class Chain:
                 vec1 = self.coordinates[k][1]
             if (self.coordinates[k][0] == res2):
                 vec2 = self.coordinates[k][1]
-        print np.linalg.norm(np.asarray(vec1) - np.asarray(vec2))
+        print(np.linalg.norm(np.asarray(vec1) - np.asarray(vec2)))
 
     ######### finding index of first residue with coordinates
     def find_first(self):

@@ -27,10 +27,10 @@ from matplotlib.ticker import FormatStrFormatter
 
 try:
     import Pmw
-    import Tkinter as tk
-    import tkFileDialog
+    import tkinter as tk
+    import tkinter.filedialog
 except:
-    print "  ### Graphic libraries not found. Please install them (Tkinter and Pmw) and re-run the plugin."
+    print("  ### Graphic libraries not found. Please install them (Tkinter and Pmw) and re-run the plugin.")
 try:
     import matplotlib as mplt
     mplt.use('TKAgg')
@@ -38,10 +38,10 @@ try:
     from matplotlib.patches import Rectangle
     from matplotlib.lines import Line2D
 except:
-    print "  ### Matplotlib library not found. Please install it and re-run the plugin."
+    print("  ### Matplotlib library not found. Please install it and re-run the plugin.")
 from pymol.cgo import *
 from pymol import cmd
-from tkFont import Font
+from tkinter.font import Font
 from math import ceil
 
 errors = {
@@ -161,11 +161,11 @@ class PyLasso:
     ####################################################################################################################
 
     def load_file(self):
-        self.open_file_window = tkFileDialog.askopenfile(initialdir=os.getcwd(), title="PyLasso",
+        self.open_file_window = tkinter.filedialog.askopenfile(initialdir=os.getcwd(), title="PyLasso",
                                                          filetypes=(("PDB", "*.pdb"), ("XYZ", "*.xyz")))
 
         if self.open_file_window == None:
-            print "  ### No file was chosen. PyLasso was shut down."
+            print("  ### No file was chosen. PyLasso was shut down.")
             return
 
         self._full_path_to_file = self.open_file_window.name
@@ -195,7 +195,7 @@ class PyLasso:
         self.initialise_plugin_interface()
         self.adjust_object_representation()
         self.delete_pymol_objects()
-        print "  (Bio)Polymer reloaded..."
+        print("  (Bio)Polymer reloaded...")
 
     def raise_popup_menu(self, error_message):
         if hasattr(self, "error_pop_menu") and self.error_popup.winfo_exists():
@@ -289,7 +289,7 @@ class PyLasso:
                     num_frames += 1
                     atom_idx = 1
                 else:
-                    elems = filter(len, line.split(" "))
+                    elems = list(filter(len, line.split(" ")))
                     line = "ATOM%7d  CA  GLY A%4d    %8.3f%8.3f%8.3f  1.00  0.00           C\n" % \
                            (atom_idx, atom_idx, float(elems[1]), float(elems[2]), float(elems[3][:-1]))
                     atom_idx += 1
@@ -356,7 +356,7 @@ class PyLasso:
 
         with open(self._full_path_to_dir + os.sep + self._filename, "r") as f:
             for line in f:
-                clear_line = filter(len, line.split(" "))
+                clear_line = list(filter(len, line.split(" ")))
                 if reg.match(line) and self.is_trajectory:
                     try:
                         atoms.append(int(clear_line[4]))
@@ -390,7 +390,7 @@ class PyLasso:
 
     def _invoke_plugin_action(self, clicked_btn):
         if clicked_btn == "Proceed":
-            print "  PyLasso is running..."
+            print("  PyLasso is running...")
             self._invoke_program()
         else:
             self.dialog.withdraw()
@@ -404,7 +404,7 @@ class PyLasso:
                 self.artifact_found.withdraw()
             if hasattr(self, "bridge_found") and self.bridge_found.winfo_exists():
                 self.bridge_found.withdraw()
-            print "  PyLasso has been shut down..."
+            print("  PyLasso has been shut down...")
 
     ####################################################################################################################
     #                                            INITIALISE INTERFACE
@@ -437,7 +437,7 @@ class PyLasso:
     ####################################################################################################################
 
     def create_trajectory_interface(self):
-        print "  Trajectory detected. Setting correct interface..."
+        print("  Trajectory detected. Setting correct interface...")
         if hasattr(self, "fr_selected_loop") and hasattr(self, "fr_detailed_output") and hasattr(self, "fr_step"):
             self.fr_selected_loop.grid_forget()
             self.fr_detailed_output.grid_forget()
@@ -579,7 +579,7 @@ class PyLasso:
         self.loops_list[0][0].setentry("")
         self.loops_list[0][1].setentry("")
 
-        for i in self.distance_error.keys():
+        for i in list(self.distance_error.keys()):
             self.distance_error[i].grid_forget()
 
         self.label_trajectory_loop.configure(text=textwrap.fill(self.label_trajectory_loop.cget("text"), 50))
@@ -650,7 +650,7 @@ class PyLasso:
     ####################################################################################################################
 
     def create_protein_interface(self):
-        print "  Single structure protein detected. Setting correct interface..."
+        print("  Single structure protein detected. Setting correct interface...")
         if hasattr(self, "fr_selected_loop"):
             self.fr_selected_loop.grid_forget()
             self.fr_detailed_output.grid_forget()
@@ -838,7 +838,7 @@ class PyLasso:
             self.btns_view[i].grid_forget()
             self.number_of_own_loops -= 1
 
-        for i in self.distance_error.keys():
+        for i in list(self.distance_error.keys()):
             self.distance_error[i].grid_forget()
 
         self.loops_list[3:] = []
@@ -978,8 +978,8 @@ class PyLasso:
                      selection1=selection1, selection2=selection2)
 
         calc_distance = round(cmd.get_distance(atom1=selection1, atom2=selection2), 1)
-        print "  ## DISTANCE between atoms " + loop[0].getvalue() + " and " + loop[1].getvalue() + " is " + \
-              str(calc_distance)
+        print("  ## DISTANCE between atoms " + loop[0].getvalue() + " and " + loop[1].getvalue() + " is " + \
+              str(calc_distance))
 
         usr_dist = (self.min_dist_crossings.getvalue() if self.is_stable.get() == 0 else 10)
         if pos < 4:
@@ -992,7 +992,7 @@ class PyLasso:
         interior = self.chosen_own_lc if hasattr(self, "chosen_own_lc") else self.fr_selected_loop.interior()
 
         if float(calc_dist) > float(usr_dist):
-            if pos not in self.distance_error.keys():
+            if pos not in list(self.distance_error.keys()):
                 if hasattr(self, "chosen_own_lc"):
                     self.label_ll.configure(text=textwrap.fill(self.label_ll.cget("text"), 55))
                     self.label_ll.grid_configure(columnspan=5)
@@ -1008,7 +1008,7 @@ class PyLasso:
                                                 "forming a bridge should be chosen or an option 'Ignore bad length of "
                                                 "bridge or Ca-Ca bonds' should be ticked.", self.hint_width))
         else:
-            if pos in self.distance_error.keys():
+            if pos in list(self.distance_error.keys()):
                 self.distance_error[pos].grid_forget()
                 del self.distance_error[pos]
 
@@ -1171,7 +1171,7 @@ class PyLasso:
                 self.call_program_for_artifacts()
 
         if self.is_gln_checkbutton_selected.get():
-            print "  Generating GLN matrices..."
+            print("  Generating GLN matrices...")
             self.call_gln_generator()
 
         self.move_files_to_polymer_directory()
@@ -1205,16 +1205,16 @@ class PyLasso:
             chain = self.chain_index.get()
             file_with_bridge = (self._full_path_to_file + "_" + chain)
 
-            all_bridges = filter(len, all_bridges)
-            self.pdb_bridges = filter(lambda i: i.__contains__(file_with_bridge) or
-                                                i.__contains__("WARNING"), all_bridges)
+            all_bridges = list(filter(len, all_bridges))
+            self.pdb_bridges = [i for i in all_bridges if i.__contains__(file_with_bridge) or
+                                                i.__contains__("WARNING")]
 
     ####################################################################################################################
     #                                               1) GET PLUGIN DATA
     ####################################################################################################################
 
     def generate_invoking_commands(self):
-        print "  Collecting user's data..."
+        print("  Collecting user's data...")
         arguments = []
         self.list_bridges = []
 
@@ -1407,11 +1407,11 @@ class PyLasso:
             for i in self.user_data:
                 process = subprocess.Popen(i.split(" "), stdout=subprocess.PIPE).communicate()[0]
                 self.output_data.append(process)
-            self.output_data = filter(len, self.output_data)
+            self.output_data = list(filter(len, self.output_data))
         except Exception:
-            print "Something went wrong with executable file. Please make sure you changed access permission to " \
-                  "it (can be obtained by typing in console chmod a+x detect_lassos)."
-        print "  Data passed to program and executed..."
+            print("Something went wrong with executable file. Please make sure you changed access permission to " \
+                  "it (can be obtained by typing in console chmod a+x detect_lassos).")
+        print("  Data passed to program and executed...")
 
     def call_gln_generator(self):
         iterate_list = self.user_data
@@ -1432,7 +1432,7 @@ class PyLasso:
 
         for i in self.output_data:
             elem = i.split("\n")
-            elem = filter(len, elem)
+            elem = list(filter(len, elem))
             smooth_cross = elem[-1]
             if smooth_cross.__contains__("ERROR"):
                 self.smooth_crossings.append([])
@@ -1458,8 +1458,8 @@ class PyLasso:
 
         for i in self.user_data:
             self.output_data.append(subprocess.Popen(i.split(" "), stdout=subprocess.PIPE).communicate()[0])
-        self.output_data = filter(len, self.output_data)
-        print "  Modified data passed to program again and executed..."
+        self.output_data = list(filter(len, self.output_data))
+        print("  Modified data passed to program again and executed...")
 
     def move_files_to_polymer_directory(self):
         self.current_working_dir = system_working_directory
@@ -1477,16 +1477,16 @@ class PyLasso:
         self.separate_files_to_directory(self.current_working_dir,  os.getcwd() + os.sep, self._filename + "_")
         self.separate_files_to_directory(self._full_path_to_dir, os.getcwd() + os.sep, self._filename + "_")
         os.chdir(self.current_working_dir)
-        print "  Resulting files moved to separate directories..."
+        print("  Resulting files moved to separate directories...")
 
     def create_polymer_directory(self, prot):
         direct = os.sep.join(self._full_path_to_file.split(os.sep)[:-1]) + os.sep + prot
 
         if not os.path.exists(direct):
             os.makedirs(direct)
-            print "  Creating a new, separate directory for data..."
+            print("  Creating a new, separate directory for data...")
         else:
-            print "  Directory found. Replacing existing files with new data..."
+            print("  Directory found. Replacing existing files with new data...")
         return direct.split(os.sep)[-1]
 
     def separate_files_to_directory(self, source, target, *files):
@@ -1808,10 +1808,10 @@ class PyLasso:
         ax.tick_params(axis='both', labelsize=9)
         for tick in ax.get_xticklabels():
             tick.set_rotation(50)
-        y_values = [self.lasso_info_tuple[elem][0] for elem in self.lasso_info_tuple.keys()]
+        y_values = [self.lasso_info_tuple[elem][0] for elem in list(self.lasso_info_tuple.keys())]
         ax.yaxis.set_ticks(y_values)
         ax.set_ylim([-1, len(set(self.retrieved_trajectory_lassos))])
-        for elem in self.lasso_info_tuple.keys():
+        for elem in list(self.lasso_info_tuple.keys()):
             pos = y_values.index(self.lasso_info_tuple[elem][0]) # change integer values to string equal to type of lasso
             y_values[pos] = elem
         ax.set_yticklabels(y_values)
@@ -1926,7 +1926,7 @@ class PyLasso:
 
         if x is not None:
             if not self.display_all:
-                for ann in self.annotations.values():
+                for ann in list(self.annotations.values()):
                     ann.set_visible(False)
             annotation.xy = x, y
             pos = list(self.axes[0].get_yticks()).index(y)
@@ -1969,7 +1969,7 @@ class PyLasso:
         neg_pierc = ""
 
         if crossings.__contains__(",") or (type(crossings) == list and len(crossings) == 1):
-            piercings = filter(len, crossings)
+            piercings = list(filter(len, crossings))
             for i in piercings:
                 if i.startswith("+"):
                     pos_pierc += "(residue " + str(i[1:]) + " and name " + atom + ") "
@@ -2036,7 +2036,7 @@ class PyLasso:
             tick.set_rotation(50)
 
         # draw chart, where x - frames and y - atom crossing
-        zipped_frames_crossings = zip(self.retrieved_frames, self.retrieved_trajectory_crossings)
+        zipped_frames_crossings = list(zip(self.retrieved_frames, self.retrieved_trajectory_crossings))
         rect_width = 0
         for idx in range(0, len(self.retrieved_frames[:-1]), xticks_dist):
             if not zipped_frames_crossings[idx][1].__contains__("|") or zipped_frames_crossings[idx][1] != "|":
@@ -2167,9 +2167,9 @@ class PyLasso:
 
         if not os.path.exists(frame_dir):
             os.mkdir(frame_dir)
-            print "  Creating separate directory for frame data..."
+            print("  Creating separate directory for frame data...")
         else:
-            print "  Directory found. Replacing current frame files with new data..."
+            print("  Directory found. Replacing current frame files with new data...")
 
     ####################################################################################################################
     #                                       2. CREATE PROTEIN RESULT WINDOW
@@ -2399,7 +2399,7 @@ class PyLasso:
                        "ERR": "ERR"  # for trajectories only
                        }
 
-        for k, v in lasso_types.iteritems():
+        for k, v in lasso_types.items():
             try:
                 img_lassos[k] = tk.PhotoImage(file=os.path.join(plugin_path + os.sep + "lassos", v + self._img_extension))
             except:
@@ -2421,7 +2421,7 @@ class PyLasso:
 
         with open(self._full_path_to_dir + os.sep + self._filename, "r") as f:
             for line in f:
-                clear_line = filter(len, line.split(" "))
+                clear_line = list(filter(len, line.split(" ")))
                 if reg.match(line) and self.is_trajectory:
                     try:
                         atoms.append(int(clear_line[4]))
@@ -2441,7 +2441,7 @@ class PyLasso:
 
         bridges = {"SS": "SS", "AMIDE": "Amide", "AMIDE-like": "Amide", "ESTER": "Ester", "ESTER-like": "Ester",
                    "THIOESTER": "Thioester", "THIOESTER-like": "Thioester", "OTHER": "Other"}
-        for k, v in bridges.iteritems():
+        for k, v in bridges.items():
             img_bridges[k] = tk.PhotoImage(file=os.path.join(plugin_path + os.sep + "img", v + self._img_extension))
         tmp_label_bridge = tk.Label(self.fr_loop_closing_bridge.interior())
         tmp_label_bridge.image = img_bridges
@@ -2605,7 +2605,7 @@ class PyLasso:
                                   '(e.g. press the button ''view details'') and try again.')
 
         if self.lasinf_is_gln_selected.get():
-            print "  Matrices are loading. Please wait..."
+            print("  Matrices are loading. Please wait...")
             if hasattr(self, "win_gln_matrices") and self.win_gln_matrices.winfo_exists():
                 self.win_gln_matrices.grid_forget()
             self.prev_displayed_gln_segment = None
@@ -2727,7 +2727,7 @@ class PyLasso:
                 selected_atoms_gln = selected_atoms_gln[:-3]
                 cmd.select(name="GLN_SELE", selection=selected_atoms_gln)
                 cmd.color(color="green", selection="GLN_SELE")
-                print "  Sequence " + str(gln_tuple[0]) + "-" + str(gln_tuple[1]) + " has been colored..."
+                print("  Sequence " + str(gln_tuple[0]) + "-" + str(gln_tuple[1]) + " has been colored...")
             self.prev_displayed_gln_segment = (int(event.xdata), int(event.ydata))
 
     def create_view_details_buttons(self):
@@ -2891,7 +2891,7 @@ class PyLasso:
                 replace("\n", " ").split(" ")
             piercings += str(self.array_of_results[self.displayed_lasso][4].get("1.0", "end-1c")). \
                 replace("\n", " ").split(" ")
-        piercings = filter(len, piercings)
+        piercings = list(filter(len, piercings))
 
         if len(piercings) != 1:
             for i in piercings:
@@ -3063,7 +3063,7 @@ class PyLasso:
         cmd.set(name="seq_view", value=1)
         cmd.set(name="line_width", value=4)
         cmd.deselect()
-        print "  Chain, sequence, residues and bridge drawn in PyMOL..."
+        print("  Chain, sequence, residues and bridge drawn in PyMOL...")
 
         file_path = self._filename.replace(".", "_")
         if self.is_trajectory:
@@ -3087,11 +3087,11 @@ class PyLasso:
 
         if None is not self.lasinf_shallow_display and self.lasinf_shallow_display.get():
             self.pymol_draw_triangles(self.shallow_lassos, "SHALLOW_PIERC", 1)
-            print "  Shallow lassos drawn in PyMOL..."
+            print("  Shallow lassos drawn in PyMOL...")
         self.pymol_draw_triangles(self.crossing_coord, "PIERC")
-        print "  Piercings drawn in PyMOL..."
+        print("  Piercings drawn in PyMOL...")
         self.pymol_draw_surface(self.triang_coord, "TRIANG")
-        print "  Surface drawn in PyMOL..."
+        print("  Surface drawn in PyMOL...")
 
         cmd.hide(representation="lines", selection="all and sc.")
         cmd.move(axis="z", distance=-130)
@@ -3149,7 +3149,7 @@ class PyLasso:
 
             cmd.clip(mode="slab", distance="1000")
             cmd.set(name="two_sided_lighting", value=1)
-            print "  Shallow lassos displayed in PyMOL and in array"
+            print("  Shallow lassos displayed in PyMOL and in array")
         else:
             for idx, l in enumerate(self.lassos):
                 if not len(l[0]) is 0:
@@ -3241,7 +3241,7 @@ class PyLasso:
                     cmd.spectrum(palette="rainbow", selection="SMOOTH_CHAIN_" + chain)
                 else:
                     cmd.spectrum(palette="rainbow", selection="CHAIN_" + chain + "*")
-            print "  Surface without area of triangulation showed..."
+            print("  Surface without area of triangulation showed...")
 
     def pymol_color_structure_gln(self):
         if self.lasinf_is_gln_selected.get():
@@ -3260,7 +3260,7 @@ class PyLasso:
                 cmd.set_color(name=atom_idx, rgb=self.gln_protein_colors[elem])
                 cmd.color(color=atom_idx, selection=atom_idx)
                 cmd.color(color=atom_idx, selection=atom_idx_1)
-            print "  Crossings has been colored..."
+            print("  Crossings has been colored...")
         else:
             cmd.spectrum(palette="rainbow", selection="CHAIN_*")
             cmd.color(color="gray", selection="SEQ")
@@ -3280,7 +3280,7 @@ class PyLasso:
 
         with open(filename) as f:
             for elem in f:
-                words = filter(len, elem.split(" "))
+                words = list(filter(len, elem.split(" ")))
                 self.gln_protein_colors[int(words[3])] = [round(float(words[5]), 3), round(float(words[6]), 3),
                                                           round(float(words[7]), 3)]
 
@@ -3362,7 +3362,7 @@ class PyLasso:
                 cmd.bond(
                     atom1="SMOOTH_CHAIN_" + chain + " and id " + str(smooth_atoms[idx]) + " and name " + atom,
                     atom2="SMOOTH_CHAIN_" + chain + " and id " + str(smooth_atoms[idx + 1]) + " and name " + atom)
-            print "  Smoothed chain and bridge drawn in PyMOL..."
+            print("  Smoothed chain and bridge drawn in PyMOL...")
 
             self.get_triangles_coordinates(self._full_path_to_dir + os.sep + surface_triang_coord)
 

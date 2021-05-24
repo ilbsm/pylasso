@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import sys
 import numpy as np
 import argparse
@@ -7,7 +7,8 @@ from os import rename, remove
 from shutil import copyfile
 
 date = "05.06.2017"
-parser = argparse.ArgumentParser(prog="convert_columns", formatter_class=argparse.RawDescriptionHelpFormatter, description="#################################################################\n\
+parser = argparse.ArgumentParser(prog="convert_columns", formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 description="#################################################################\n\
 #	convert_column - script converting PDB to XYZ files.	#\n\
 #	Date: 02.10.2015, version from " + date + "		#\n\
 #       Author: Pawel Dabrowski-Tumanski			#\n\
@@ -31,6 +32,7 @@ global find_index, amino_acids
 amino_acids = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLU', 'GLN', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO',
                'SER', 'THR', 'TRP', 'TYR', 'VAL', 'BTC', 'FCY', 'GGL']
 
+
 ################################ Functions ################################
 def find_index(number, arr):
     for k in range(len(arr)):
@@ -53,75 +55,82 @@ def parse_traj(name, out, four):
     output = open(out + '_' + str(nextchain) + '.xyz', 'w')
 
     for line in f:
-        if ((line[0:6] == "TITLE ") or (line[0:6] == "REMARK")) and len(re.findall("t=[ ]*([0-9]+\.[0-9]+|[0-9]+)", line))>0 and got_chain == 0:
-	    if not output.closed: output.close()
+        if ((line[0:6] == "TITLE ") or (line[0:6] == "REMARK")) and len(
+                re.findall("t=[ ]*([0-9]+\.[0-9]+|[0-9]+)", line)) > 0 and got_chain == 0:
+            if not output.closed:
+                output.close()
             nextchain = 0
-	    output = open(out + '_' + str(nextchain) + '.xyz', 'a')
-	    if re.findall("(t=[ ]*[0-9]+\.[0-9]+)|(t=[ ]*[0-9]+)", line)[0][0] != '' : 
-		time = re.findall("(t=[ ]*[0-9]+\.[0-9]+)|(t=[ ]*[0-9]+)", line)[0][0][2:].strip()
-		time = "{0:.5f}".format(float(time))
-	    else: 
-		time = re.findall("(t=[ ]*[0-9]+\.[0-9]+)|(t=[ ]*[0-9]+)", line)[0][1][2:].strip()
-		time = "{0:.5f}".format(float(time))
+            output = open(out + '_' + str(nextchain) + '.xyz', 'a')
+            if re.findall("(t=[ ]*[0-9]+\.[0-9]+)|(t=[ ]*[0-9]+)", line)[0][0] != '':
+                time = re.findall("(t=[ ]*[0-9]+\.[0-9]+)|(t=[ ]*[0-9]+)", line)[0][0][2:].strip()
+                time = "{0:.5f}".format(float(time))
+            else:
+                time = re.findall("(t=[ ]*[0-9]+\.[0-9]+)|(t=[ ]*[0-9]+)", line)[0][1][2:].strip()
+                time = "{0:.5f}".format(float(time))
             got_chain = 1
-	    new_chain = 1
+            new_chain = 1
         if (line[0:6] == "MODEL ") and got_chain == 0:
             if not output.closed: output.close()
             nextchain = 0
-	    output = open(out + '_' + str(nextchain) + '.xyz', 'a')
-	    if re.findall("([0-9]+\.[0-9]+)|([0-9]+)", line)[0][0] != '' : 
-		time = re.findall("([0-9]+\.[0-9]+)|([0-9]+)", line)[0][0]
-		time = "{0:.5f}".format(float(time))
-	    else: 
-		time = re.findall("([0-9]+\.[0-9]+)|([0-9]+)", line)[0][1]
-		time = "{0:.5f}".format(float(time))
+            output = open(out + '_' + str(nextchain) + '.xyz', 'a')
+            if re.findall("([0-9]+\.[0-9]+)|([0-9]+)", line)[0][0] != '':
+                time = re.findall("([0-9]+\.[0-9]+)|([0-9]+)", line)[0][0]
+                time = "{0:.5f}".format(float(time))
+            else:
+                time = re.findall("([0-9]+\.[0-9]+)|([0-9]+)", line)[0][1]
+                time = "{0:.5f}".format(float(time))
             got_chain = 1
-	    new_chain = 1
-	    new_model = 1
-	if (line[0:6] == "TER   "):
-	    output.close()
-	    new_chain = 1
-	    nextchain = nextchain + 1
+            new_chain = 1
+            new_model = 1
+        if (line[0:6] == "TER   "):
+            output.close()
+            new_chain = 1
+            nextchain = nextchain + 1
             output = open(out + '_' + str(nextchain) + '.xyz', 'a')
         if ((line[0:6] == "ATOM  ") or (line[0:6] == "HETATM")) and (line[12:16].strip() == "CA"):
-	    if time == 'unset': 
-		art_time = 1
-		time = 0
-		time = "{0:.5f}".format(float(time))
-	    if (art_time == 1) and (new_model == 1): 
-		oldtime = oldtime + 1
-		time = oldtime
-		time = "{0:.5f}".format(float(time))
-		new_model = 0
-		time_changed = 1
+            if time == 'unset':
+                art_time = 1
+                time = 0
+                time = "{0:.5f}".format(float(time))
+            if (art_time == 1) and (new_model == 1):
+                oldtime = oldtime + 1
+                time = oldtime
+                time = "{0:.5f}".format(float(time))
+                new_model = 0
+                time_changed = 1
             if (new_chain == 1):
-		if (line[21] in chains) and (art_time == 1) and (time_changed == 0): 
-		    time = time + 1
-		    time = "{0:.5f}".format(float(time))
-		output.write("t " + str(time) + "\n")
-		new_chain = 0
-	    if four == False:
+                if (line[21] in chains) and (art_time == 1) and (time_changed == 0):
+                    time = time + 1
+                    time = "{0:.5f}".format(float(time))
+                output.write("t " + str(time) + "\n")
+                new_chain = 0
+            if four == False:
                 output.write(
-                str(int(line[22:26])) + "  " + str(float(line[30:38])) + " " + str(float(line[38:46])) + " " + str(
-                    float(line[46:54])) + " " + str(line[17:20]) + "\n")
-	    if four == True:
-		output.write(
-                str(int(line[22:26])) + "  " + str(float(line[30:38])) + " " + str(float(line[38:46])) + " " + str(
-                    float(line[46:54])) + "\n")
+                    str(int(line[22:26])) + "  " + str(float(line[30:38])) + " " + str(float(line[38:46])) + " " + str(
+                        float(line[46:54])) + " " + str(line[17:20]) + "\n")
+            if four == True:
+                output.write(
+                    str(int(line[22:26])) + "  " + str(float(line[30:38])) + " " + str(float(line[38:46])) + " " + str(
+                        float(line[46:54])) + "\n")
             got_chain = 0
-	    time_changed = 0
-	    if line[21] not in chains: chains.append(line[21])
+            time_changed = 0
+            if line[21] not in chains: chains.append(line[21])
         if (line[0:6] == "ENDMDL"): new_model = 1
     if not output.closed: output.close()
     f.close()
 
     for k in range(len(chains)):
-	if chains[k] != ' ' : rename(out + '_' + str(k) + '.xyz', out + '_' + chains[k] + '.xyz')
-	else: rename(out + '_' + str(k) + '.xyz', out + '_' + names[k] + '.xyz') 
-    if chains[0] != ' ' : copyfile(out + '_' + chains[0] + '.xyz', out + '.xyz')
-    else: copyfile(out + '_A.xyz', out + '.xyz')
-    for i in range(k+1,nextchain+1):
-	remove(out + '_' + str(i) + '.xyz')
+        if chains[k] != ' ':
+            rename(out + '_' + str(k) + '.xyz', out + '_' + chains[k] + '.xyz')
+        else:
+            rename(out + '_' + str(k) + '.xyz', out + '_' + names[k] + '.xyz')
+    if chains[0] != ' ':
+        copyfile(out + '_' + chains[0] + '.xyz', out + '.xyz')
+    else:
+        copyfile(out + '_A.xyz', out + '.xyz')
+    for i in range(k + 1, nextchain + 1):
+        remove(out + '_' + str(i) + '.xyz')
+
 
 class Chain:
     def __init__(self, name):
@@ -184,40 +193,40 @@ class Chain:
     def bond_type(self, res1, atom1, Nend, res2, atom2, Cend):
         if ((atom1[0], atom2[0]) == ("C", "N")):
             if ((((res1, atom1) == ("GLU", "CD")) or ((res1, atom1) == ("ASP", "CG"))) and (
-                        (res2, atom2) == ("LYS", "NZ"))):
+                    (res2, atom2) == ("LYS", "NZ"))):
                 return "AMIDE"
             else:
                 return "AMIDE-like"
         if ((atom1[0], atom2[0]) == ("N", "C")):
             if ((((res1, atom1) == ("LYS", "NZ")) or (Nend and atom1 == "N")) and (
-                            ((res2, atom2) == ("GLU", "CD")) or ((res2, atom2) == ("ASP", "CG")) or (
-                        Cend and atom2 == "C"))):
+                    ((res2, atom2) == ("GLU", "CD")) or ((res2, atom2) == ("ASP", "CG")) or (
+                    Cend and atom2 == "C"))):
                 return "AMIDE"
             else:
                 return "AMIDE-like"
         if ((atom1[0], atom2[0]) == ("C", "O")):
             if ((((res1, atom1) == ("GLU", "CD")) or ((res1, atom1) == ("ASP", "CG"))) and (
-                        ((res2, atom2) == ("SER", "OG")) or ((res2, atom2) == ("THR", "OG1")))):
+                    ((res2, atom2) == ("SER", "OG")) or ((res2, atom2) == ("THR", "OG1")))):
                 return "ESTER"
             else:
                 return "ESTER-like"
         if ((atom1[0], atom2[0]) == ("O", "C")):
             if ((((res1, atom1) == ("SER", "OG")) or ((res2, atom2) == ("THR", "OG1"))) and (
-                            ((res2, atom2) == ("GLU", "CD")) or ((res2, atom2) == ("ASP", "CG")) or (
-                        Cend and atom2 == "C"))):
+                    ((res2, atom2) == ("GLU", "CD")) or ((res2, atom2) == ("ASP", "CG")) or (
+                    Cend and atom2 == "C"))):
                 return "ESTER"
             else:
                 return "ESTER-like"
         if ((atom1[0], atom2[0]) == ("C", "S")):
             if ((((res1, atom1) == ("GLU", "CD")) or ((res1, atom1) == ("ASP", "CG"))) and (
-                        (res2, atom2) == ("CYS", "SG"))):
+                    (res2, atom2) == ("CYS", "SG"))):
                 return "THIOESTER"
             else:
                 return "THIOESTER-like"
         if ((atom1[0], atom2[0]) == ("S", "C")):
             if (((res1, atom1) == ("CYS", "SG")) and (
-                            ((res2, atom2) == ("GLU", "CD")) or ((res2, atom2) == ("ASP", "CG")) or (
-                        Cend and atom2 == "C"))):
+                    ((res2, atom2) == ("GLU", "CD")) or ((res2, atom2) == ("ASP", "CG")) or (
+                    Cend and atom2 == "C"))):
                 return "THIOESTER"
             else:
                 return "THIOESTER-like"
@@ -275,8 +284,8 @@ class Chain:
                 ### removing amide bonds used to extend the backbone
         for k in range(len(self.bridges) - 1, -1, -1):
             if ((self.bridges[k][0] == "AMIDE-like") and (abs(
-                        find_index(self.bridges[k][3], self.coordinates) - find_index(self.bridges[k][6],
-                                                                                      self.coordinates)) == 1)):
+                    find_index(self.bridges[k][3], self.coordinates) - find_index(self.bridges[k][6],
+                                                                                  self.coordinates)) == 1)):
                 self.bridges.pop(k)
                 ### dealing with different number of residues in different parts of PDB file
         k = len(self.residues) - len(self.coordinates)
@@ -320,7 +329,7 @@ class Chain:
     ######### printing data
     def chain_print(self, PDB, four):
         output_file = open(PDB + "_" + self.name + ".xyz", 'w')
-        print self.check_gaps()
+        print(self.check_gaps())
         if (len(self.residues) == self.length):
             for k in range(min(self.length, len(self.coordinates))):
                 if (self.coordinates[k][1] != []) and (four == False):
@@ -368,14 +377,14 @@ class Chain:
     def commands_print(self, PDB, flag=0):
         for k in range(len(self.bridges)):
             if (flag == 1):
-                print self.bridges[k][0] + " ./surfacesMyOrient " + PDB + "_" + self.name + ".xyz " + str(
-                    self.bridges[k][3]) + " " + str(self.bridges[k][6]) + " 0 0"
+                print(self.bridges[k][0] + " ./surfacesMyOrient " + PDB + "_" + self.name + ".xyz " + str(
+                    self.bridges[k][3]) + " " + str(self.bridges[k][6]) + " 0 0")
             if (flag == 2):
-                print self.bridges[k][0] + " " + PDB + "_" + self.name + " " + str(self.bridges[k][3]) + " " + str(
-                    self.bridges[k][6])
+                print(self.bridges[k][0] + " " + PDB + "_" + self.name + " " + str(self.bridges[k][3]) + " " + str(
+                    self.bridges[k][6]))
             else:
-                print "./surfacesMyOrient " + PDB + "_" + self.name + ".xyz " + str(self.bridges[k][3]) + " " + str(
-                    self.bridges[k][6]) + " 0 0"
+                print("./surfacesMyOrient " + PDB + "_" + self.name + ".xyz " + str(self.bridges[k][3]) + " " + str(
+                    self.bridges[k][6]) + " 0 0")
                 ######### finding distance between residues
 
     def find_distance(self, res1, res2):
@@ -384,7 +393,7 @@ class Chain:
                 vec1 = self.coordinates[k][1]
             if (self.coordinates[k][0] == res2):
                 vec2 = self.coordinates[k][1]
-        print np.linalg.norm(np.asarray(vec1) - np.asarray(vec2))
+        print(np.linalg.norm(np.asarray(vec1) - np.asarray(vec2)))
 
     ######### finding index of first residue with coordinates
     def find_first(self):
@@ -392,11 +401,12 @@ class Chain:
             if (self.coordinates[k][1] != []):
                 return self.coordinates[k][0]
 
+
 if (args.romek == True):
     import webbrowser
+
     webbrowser.open("https://www.youtube.com/watch?v=niiYv09hHOI")
     sys.exit(0)
-
 
 ################################ Main part ################################
 ### search for chains and build chain classes
@@ -417,22 +427,22 @@ else:
             if (line[11] not in chains):
                 chains.append(line[11])
         if (line[0:4] == "ATOM"):
-	    terfound = 0
+            terfound = 0
             if (line[21] not in chains):
                 chains.append(line[21])
-	if (line[0:3] == "TER") and (terfound == 0) and (tercount == 1):
-	    ternum = ternum + 1
-	    terfound = 1
-	if (line[0:3] == "END"):
-	    if (terfound == 0) and (tercount == 1): ternum = ternum + 1
-	    tercount = 0
+        if (line[0:3] == "TER") and (terfound == 0) and (tercount == 1):
+            ternum = ternum + 1
+            terfound = 1
+        if (line[0:3] == "END"):
+            if (terfound == 0) and (tercount == 1): ternum = ternum + 1
+            tercount = 0
     if (tercount == 1) and (terfound == 0): ternum = ternum + 1
     input_file.close()
     if len(chains) == 1 and chains[0] == ' ' and ternum > 0:
-	chains = []
-	art_chains = 1
-	for k in range(ternum):
-	    chains.append(names[k])
+        chains = []
+        art_chains = 1
+        for k in range(ternum):
+            chains.append(names[k])
 
     ### fill the chain class information
     cross_chain_bridges = []
@@ -443,8 +453,8 @@ else:
         input_file = open(args.input_file, 'r')
         for line in input_file:
             if ((line[0:10] == "REMARK 465") and (line[15:18] in amino_acids) and (
-                line[19] == chains[k]) and isinstance(
-                    line[21:26], int)):
+                    line[19] == chains[k]) and isinstance(
+                line[21:26], int)):
                 chain_data[chains[k]].add_missing(int(line[21:26]), line[15:18])
             if ((line[0:6] == "SEQRES") and (line[11] == chains[k])):
                 chain_data[chains[k]].add_residue(line)
@@ -478,13 +488,13 @@ else:
                 chain_data[chains[k]].add_coordinate(int(line[22:26]),
                                                      [float(line[30:38]), float(line[38:46]), float(line[46:54])],
                                                      line[17:20])
-	    if ((line[0:4] == "ATOM") and (line[13:15] == "CA") and (k == ternum) and (art_chains == 1)):
+            if ((line[0:4] == "ATOM") and (line[13:15] == "CA") and (k == ternum) and (art_chains == 1)):
                 chain_data[chains[k]].add_coordinate(int(line[22:26]),
                                                      [float(line[30:38]), float(line[38:46]), float(line[46:54])],
                                                      line[17:20])
             if ((line[0:3] == "TER") and (len(chain_data[chains[k]].coordinates) != 0)):
                 break
-	    if ((line[0:3] == "TER") and (len(chain_data[chains[k]].coordinates) == 0)):
+            if ((line[0:3] == "TER") and (len(chain_data[chains[k]].coordinates) == 0)):
                 ternum = ternum + 1
         input_file.close()
         chain_data[chains[k]].clean()  # clean bridges data - do not comment
