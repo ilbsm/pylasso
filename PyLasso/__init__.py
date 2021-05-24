@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-# PyLasso: A PyMOL plugin to identify lassos, version for Windows platform
+# PyLasso: A PyMOL plugin to identify lassos,
 # Script/plugin by Aleksandra Gierut (a.gierut@cent.uw.edu.pl)
+# Enhanced and adapted for Python 3 by Pawel Rubach (p.rubach@cent.uw.edu.pl)
 # Questions should be addressed to: Joanna Sulkowska (jsulkowska@cent.uw.edu.pl)
-# Any technical difficulties and remarks please report to: Aleksandra Gierut (a.gierut@cent.uw.edu.pl)
+# Any technical difficulties and remarks please report to: Aleksandra Gierut (a.gierut@cent.uw.edu.pl) or
+# Pawel Rubach (p.rubach@cent.uw.edu.pl)
 #
 # THE AUTHOR(S) DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
 # INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN
@@ -15,10 +17,12 @@
 
 
 import re
+import subprocess
 import shutil
 import textwrap
 import imp
 import decimal
+import platform
 
 import sys
 
@@ -31,11 +35,14 @@ except:
 try:
     import matplotlib as mplt
     mplt.use('TKAgg')
+except Exception as e:
+    print("  ### Matplotlib library not found. Please install it and re-run the plugin." + str(e))
+try:
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
     from matplotlib.patches import Rectangle
     from matplotlib.lines import Line2D
-except:
-    print("  ### Matplotlib library not found. Please install it and re-run the plugin.")
+except Exception as e:
+    print("  ### Matplotlib library not found. Please install it and re-run the plugin." + str(e))
 from pymol.cgo import *
 from pymol import cmd
 from tkinter.font import Font
@@ -95,77 +102,64 @@ colors = ['#FF4000', '#FF8000', '#FFBF00', '#FFFF00', '#BFFF00', '#80FF00', '#40
           '#FF3399', '#990033', '#CC3300', '#FFFFFF', '#9900FF', '#0033CC', '#339966', '#336600', '#cc3300',
           '#CC6699', 'red', '#FF9966']
 
+
+GUI_PARS = {
+    'TRAJECTORY_LOOP_FILL': [50, 5, 55],
+    'TRAJECTORY_LOOP_GRID_COL_SPAN': [5, 5, 4],
+    'TRAJECTORY_LOOP_GRID_PADX' : [5, 5, 4],
+    'TRAJ_LOG': [625, 625, 500],
+    'FACECOLOR': ['lightgray', 'lightgray', 'whitesmoke'],
+    'GLN_MATRICES_COL_SPAN': [10, 10, 9],
+    'GLN_MATRICES_PADY': [5, 5, 4],
+    'GLN_MATRIX_BOTTOM': [0.17, 0.17, 0.1],
+    'GLN_MATRIX_LEFT': [0.15, 0.11, 0.1],
+    'CHART_LASSOS_TYPE_BOTTOM': [0.16, 0.27, 0.16],
+    'CHART_ATOMS_PIERCING_BOTTOM': [0.26, 0.27, 0.26]
+}
+
 plugin_path = os.path.dirname(__file__)
 sys.path.append(plugin_path)
 system_working_directory = os.getcwd()
 
 
+def gui_par(par):
+    pos = { 'Linux': 0, 'Darwin': 1, 'Windows': 2 }
+    return GUI_PARS[par][pos.get(platform.system())]
+
+
+def get_main_class():
+    cls = {'Linux': PyLassoLinux, 'Darwin': PyLassoDarwin, 'Windows': PyLassoWindows}
+    return cls.get(platform.system())
+
 def __init__(self):
     self.menuBar.addmenuitem('Plugin', 'command', 'PyLasso',
                              label='PyLasso',
-                             command=lambda s=self: PyLasso(s))
+                             command=lambda s=self: get_main_class()(s))
 
-
-class PyLasso:
-    def __init__(self, app):
-
-        self.parent = app.root
-        if cmd.get_version()[1] < 2.0:
-            self.is_pymol_2 = False
-            self.bold_font = Font(family="Helvetica", size=8, weight="bold")
-            self.subscript_font = Font(family="Helvetica", size=8)
-            self.row_name_size = "Helvetica 10"
-            self.traj_charts_size = (8, 4)
-        else:
-            self.is_pymol_2 = True
-            self.parent.option_add("*Font", "Helvetica 8")
-            self.bold_font = Font(family="Helvetica", size=7, weight="bold")
-            self.subscript_font = Font(family="Helvetica", size=7)
-            self.row_name_size = "Helvetica 8"
-            self.traj_charts_size = (6.5, 4)
-
-        # Trajectory and single structure variables
-        self.screen_height = self.parent.winfo_screenheight()
-        self.screen_width = self.parent.winfo_screenwidth()
-        self._filename = ""
-        self._file_extension = ""
-        self._img_extension = ".gif"
-        self.program_execution = plugin_path + os.sep + "detect_lassos.exe "
-        self.python_compiler = 'pythonw.exe ' + plugin_path + os.sep + 'convert_pdb_2_5columns.py'
-        self.img_button_height = 16
-        self.img_button_width = 60
-        self.view_btn_width = 5
-        self.extend_clear_btns_width = 8
-        self.retrieve_btns_width = 11
-        self.retrieve_btns_pad = 2
-        self.table_name_width = 11
-        self.gln_figsize = 6
-        self.gln_dpi = 70
-        self.hull_width = 880
-        self.lassos = []
-        self.hint_width = 60
-        # Advanced variables
-        self.is_stable = tk.IntVar()
-        self.is_bad_caca_enabled = tk.IntVar()
-        self.is_gln_checkbutton_selected = tk.IntVar()
-
-        self.previous_bond_in_view = ["", ""]
-
-        self.load_file()
-
+class PyLassoBase:
     ####################################################################################################################
     #                             CHECK FILE EXTENSION & ADJUST POLYMER REPRESENTATION
     ####################################################################################################################
 
+    def get_python_exec(self):
+        if sys.version_info.major == 3:
+            res = subprocess.Popen(["python3", "--version"], stdout=subprocess.PIPE).communicate()[0].splitlines()
+            if res and res[0].decode('utf-8').find("Python 3") >= 0:
+                return "python3"
+            else:
+                "python"
+        else:
+            "python"
+
     def load_file(self):
         self.open_file_window = tkinter.filedialog.askopenfile(initialdir=os.getcwd(), title="PyLasso",
-                                                         filetypes=(("PDB", "*.pdb"), ("XYZ", "*.xyz")))
+                                                               filetypes=(("PDB", "*.pdb"), ("XYZ", "*.xyz")))
 
         if self.open_file_window == None:
             print("  ### No file was chosen. PyLasso was shut down.")
             return
 
-        self._full_path_to_file = str(self.open_file_window.name.replace("/", "\\"))
+        self._full_path_to_file = self.open_file_window.name if not platform.system() == 'Windows' else str(self.open_file_window.name.replace("/", "\\"))
 
         self._full_path_to_dir = str(os.sep.join(self._full_path_to_file.split(os.sep)[:-1]))
         self.is_original_pdb = False
@@ -176,7 +170,7 @@ class PyLasso:
         cmd.load(filename=self._full_path_to_file)
 
         self._file_extension = self._full_path_to_file[-3:]
-        self._filename = str(self._full_path_to_file).split(os.sep)[-1]
+        self._filename = self._full_path_to_file.split(os.sep)[-1]
 
         self.chains = ["A"] if (len(cmd.get_chains()) < 2) else cmd.get_chains()
 
@@ -231,7 +225,7 @@ class PyLasso:
                                                 command=self._invoke_nmr)
         self.nmr_messagebox.geometry("+%d+%d" % (self.screen_width / 2 - 150, self.screen_height / 2))
         self.nmr_messagebox.focus_force()
-        self.nmr_messagebox.wait_window()  # this line crashes in PyMOL 2.0!
+        self.nmr_messagebox.wait_window()
 
     def _invoke_nmr(self, btn):
         if btn == "Trajectory":
@@ -265,7 +259,7 @@ class PyLasso:
     def contains_bridge_information(self):
         input_file = open(self._full_path_to_file, "r").read()
         ss_bonds = list(re.findall('SSBOND|LINK', input_file, flags=re.M | re.S))
-        return len(ss_bonds) is not 0
+        return len(ss_bonds) != 0
 
     def convert_trajectory_xyz_to_pdb(self):
         traj_xyz2pdb = open(self._full_path_to_dir + os.sep + self._filename, "w")
@@ -327,7 +321,7 @@ class PyLasso:
         cmd.delete(name="SHALLOW*")
         cmd.hide(representation="spheres", selection="all")
 
-        if self.previous_bond_in_view[0] is not "" and self.previous_bond_in_view[1] is not "":
+        if self.previous_bond_in_view[0] != "" and self.previous_bond_in_view[1] != "":
             cmd.unbond(atom1=self.previous_bond_in_view[0], atom2=self.previous_bond_in_view[1])
 
     def adjust_object_representation(self):
@@ -403,7 +397,7 @@ class PyLasso:
                 self.bridge_found.withdraw()
             print("  PyLasso has been shut down...")
 
-    ####################################################################################################################
+####################################################################################################################
     #                                            INITIALISE INTERFACE
     ####################################################################################################################
 
@@ -456,8 +450,8 @@ class PyLasso:
         self.label_trajectory_loop = tk.Label(self.fr_selected_loop.interior(), justify="left",
                                               text=textwrap.fill('Define the first and the last index of residue for '
                                                                  'loop closing. Only one loop is available in the '
-                                                                 'trajectory analysis mode.', 55))
-        self.label_trajectory_loop.grid(column=0, columnspan=4, row=0, pady=2)
+                                                                 'trajectory analysis mode.', gui_par('TRAJECTORY_LOOP_FILL')))
+        self.label_trajectory_loop.grid(column=0, columnspan=gui_par('TRAJECTORY_LOOP_GRID_COL_SPAN'), row=0, pady=2, padx=gui_par('TRAJECTORY_LOOP_GRID_PADX'))
 
         self.loops_list = []
         self.loops_list.append([Pmw.EntryField(self.fr_selected_loop.interior(), labelpos='w', entry_width=8,
@@ -511,7 +505,7 @@ class PyLasso:
                 cmd.hide(representation="everything", selection=i)
                 cmd.delete(name=i)
 
-        if self.previous_bond_in_view[0] is not "" and self.previous_bond_in_view[1] is not "":
+        if self.previous_bond_in_view[0] != "" and self.previous_bond_in_view[1] != "":
             cmd.unbond(atom1=self.previous_bond_in_view[0], atom2=self.previous_bond_in_view[1])
         self.simplify_polymer_representation()
 
@@ -549,10 +543,10 @@ class PyLasso:
                                       + " and name " + atom]
 
     def validate_trajectory(self):
-        if (len(self.loops_list[0][0].getvalue()) is 0 and len(self.loops_list[0][1].getvalue()) is not 0) or (
-                        len(self.loops_list[0][0].getvalue()) is not 0 and len(self.loops_list[0][1].getvalue()) is 0):
+        if (len(self.loops_list[0][0].getvalue()) == 0 and len(self.loops_list[0][1].getvalue()) != 0) or (
+                        len(self.loops_list[0][0].getvalue()) != 0 and len(self.loops_list[0][1].getvalue()) == 0):
             self.raise_popup_menu('There are missing data in fields.')
-        if len(self.loops_list[0][0].getvalue()) is 0 or len(self.loops_list[0][1].getvalue()) is 0:
+        if len(self.loops_list[0][0].getvalue()) == 0 or len(self.loops_list[0][1].getvalue()) == 0:
             self.raise_popup_menu('Please fill in the fields in the Selected loop.')
         if (int(self.loops_list[0][0].getvalue()) < self.marginal_atoms[0]) or \
                 (int(self.loops_list[0][1].getvalue()) > self.marginal_atoms[1]):
@@ -579,7 +573,7 @@ class PyLasso:
         for i in list(self.distance_error.keys()):
             self.distance_error[i].grid_forget()
 
-        self.label_trajectory_loop.configure(text=textwrap.fill(self.label_trajectory_loop.cget("text"), 55))
+        self.label_trajectory_loop.configure(text=textwrap.fill(self.label_trajectory_loop.cget("text"), gui_par('TRAJECTORY_LOOP_FILL')))
         self.label_trajectory_loop.grid_configure(columnspan=5)
         self.distance_error = {}
 
@@ -866,8 +860,8 @@ class PyLasso:
             self.raise_popup_menu('Too little selections or there are selected atoms from wrong chain.')
 
         i = 0
-        while i != self.number_of_own_loops and (len(self.loops_list[i][0].getvalue()) is not 0
-                                                 and len(self.loops_list[i][0].getvalue()) is not 0):
+        while i != self.number_of_own_loops and (len(self.loops_list[i][0].getvalue()) != 0
+                                                 and len(self.loops_list[i][0].getvalue()) != 0):
             i += 1
         if i == self.number_of_own_loops:
             self.extend_loop_list()
@@ -893,8 +887,8 @@ class PyLasso:
             self.raise_popup_menu('Too little selections or there are selected atoms from wrong chain.')
 
         i = 0
-        while (i != self.number_of_own_loops) and (len(self.loops_list[i][0].getvalue()) is not 0
-                                                   and len(self.loops_list[i][0].getvalue()) is not 0):
+        while (i != self.number_of_own_loops) and (len(self.loops_list[i][0].getvalue()) != 0
+                                                   and len(self.loops_list[i][0].getvalue()) != 0):
             i += 1
         if i == self.number_of_own_loops:
             self.extend_loop_list()
@@ -905,10 +899,10 @@ class PyLasso:
             cmd.delete(name="sele")
 
     def view_possible_loop(self, loop, pos):
-        if (len(loop[0].getvalue()) is 0 and len(loop[1].getvalue()) is not 0) or (
-                        len(loop[0].getvalue()) is not 0 and len(loop[1].getvalue()) is 0):
+        if (len(loop[0].getvalue()) == 0 and len(loop[1].getvalue()) != 0) or (
+                        len(loop[0].getvalue()) != 0 and len(loop[1].getvalue()) == 0):
             self.raise_popup_menu('There are missing data in fields.')
-        if len(loop[0].getvalue()) is 0 or len(loop[1].getvalue()) is 0:
+        if len(loop[0].getvalue()) == 0 or len(loop[1].getvalue()) == 0:
             self.raise_popup_menu('No data in fields. There is nothing to show.')
 
         atom = "ca"
@@ -926,7 +920,7 @@ class PyLasso:
                 cmd.hide(representation="everything", selection=i)
                 cmd.delete(name=i)
 
-        if self.previous_bond_in_view[0] is not "" and self.previous_bond_in_view[1] is not "":
+        if self.previous_bond_in_view[0] != "" and self.previous_bond_in_view[1] != "":
             cmd.unbond(atom1=self.previous_bond_in_view[0], atom2=self.previous_bond_in_view[1])
 
         self.simplify_polymer_representation()
@@ -1001,13 +995,13 @@ class PyLasso:
                 self.distance_error[pos].grid(column=4, row=pos + 1)
                 self.list_hint_distance.append(Pmw.Balloon(interior, relmouse="both"))
                 self.list_hint_distance[-1].bind(self.distance_error[pos], textwrap.fill("A distance between residues "
-                                                 "is too big to form a cysteine bridge. Another pair of residues "
-                                                 "forming a bridge should be chosen or an option 'Ignore bad length of "
-                                                 "bridge or Ca-Ca bonds' should be ticked.", self.hint_width))
-            else:
-                if pos in list(self.distance_error.keys()):
-                    self.distance_error[pos].grid_forget()
-                    del self.distance_error[pos]
+                                                "is too big to form a cysteine bridge. Another pair of residues "
+                                                "forming a bridge should be chosen or an option 'Ignore bad length of "
+                                                "bridge or Ca-Ca bonds' should be ticked.", self.hint_width))
+        else:
+            if pos in list(self.distance_error.keys()):
+                self.distance_error[pos].grid_forget()
+                del self.distance_error[pos]
 
     def create_bridge_list_hints(self):
         hint_choose_bridge_type = Pmw.Balloon(self.chosen_own_lc, relmouse="both")
@@ -1125,7 +1119,9 @@ class PyLasso:
                                                                        "files in XYZ format only the last method is "
                                                                        "available.", self.hint_width))
 
-    ####################################################################################################################
+
+
+ ####################################################################################################################
     #                                               EXECUTE PROGRAM 1/2
     ####################################################################################################################
 
@@ -1158,7 +1154,7 @@ class PyLasso:
                 if hasattr(self, "artifact_found") and self.artifact_found.winfo_exists():
                     self.artifact_found.withdraw()
                 greatest_gap = self.get_greatest_gap()
-                artifact_message = "Detected lasso(s) may be artificial. The biggest gap in chain is " + greatest_gap + \
+                artifact_message = "Detected lasso(s) may be artificial. The biggest gap in chain is " + greatest_gap +\
                                    " amino acids. An option ''Ignore an inappropriate length of a bridge and Ca-Ca " \
                                    "bond'' has been ticked in order to identify bridge(s) and to determine unbroken " \
                                    "segment of a chain (a protein backbone). Be careful with interpreting results!"
@@ -1186,25 +1182,7 @@ class PyLasso:
         if hasattr(self, "error_pop_menu") and self.error_popup.winfo_exists():
             self.error_popup.withdraw()
 
-    def convert_to_5columns_format(self):
-        self.pdb_bridges = None
-        all_bridges = None
-
-        if self.is_trajectory:
-            all_bridges = os.popen(self.python_compiler + " " + self._full_path_to_file + " -f -t").read()
-        else:
-            all_bridges = os.popen(self.python_compiler + " " + self._full_path_to_file).read().splitlines()
-        if self.is_trajectory:
-            self.pdb_bridges = all_bridges
-        else:
-            chain = self.chain_index.get()
-            file_with_bridge = (self._full_path_to_file + "_" + chain)
-
-            all_bridges = list(filter(len, all_bridges))
-            self.pdb_bridges = [i for i in all_bridges if i.__contains__(file_with_bridge) or
-                                                i.__contains__("WARNING")]
-
-    ####################################################################################################################
+####################################################################################################################
     #                                               1) GET PLUGIN DATA
     ####################################################################################################################
 
@@ -1369,12 +1347,12 @@ class PyLasso:
         return list_args
 
     def validate_loop_list(self):
-        if len(self.loops_list[0][0].getvalue()) is 0 and len(self.loops_list[0][1].getvalue()) is 0:
+        if len(self.loops_list[0][0].getvalue()) == 0 and len(self.loops_list[0][1].getvalue()) == 0:
             self.raise_popup_menu('At least one loop must be given in above fields.')
 
         for elem in self.loops_list:
-            if (len(elem[0].getvalue()) is 0 and len(elem[1].getvalue()) is not 0) \
-                    or (len(elem[0].getvalue()) is not 0 and len(elem[1].getvalue()) is 0):
+            if (len(elem[0].getvalue()) == 0 and len(elem[1].getvalue()) != 0) \
+                    or (len(elem[0].getvalue()) != 0 and len(elem[1].getvalue()) == 0):
                 self.raise_popup_menu('There are missing data in fields.')
 
     ####################################################################################################################
@@ -1396,65 +1374,6 @@ class PyLasso:
         cmd.spectrum(palette="rainbow", selection="all")
         cmd.deselect()
 
-    def call_lasso_detection(self):
-        self.output_data = []
-        try:
-            for i in self.user_data:
-                process = os.popen(i).read()
-                self.output_data.append(process)
-            self.output_data = list(filter(len, self.output_data))
-        except Exception:
-            print("Something went wrong with executable file. Please make sure you changed access permission to " \
-                  "it (can be obtained by typing in console chmod a+x detect_lassos).")
-        print("  Data passed to program and executed...")
-
-    def call_gln_generator(self):
-        iterate_list = self.user_data
-        chain = self.chain_index.get()
-
-        for i in iterate_list:
-            command = i.split(" ")
-            res = [command[2], command[3]]
-            matrix1 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + "_" + \
-                      res[0] + "_" + res[1] + "_t1"
-            matrix2 = self.python_compiler[0] + " matrixGLNtoPNG_V2.py matrixGLN_" + self._filename + "_" + chain + \
-                      "_" + res[0] + "_" + res[1] + "_t2"
-            os.popen(matrix1)
-            os.popen(matrix2)
-
-    def separate_smooth_crossings_from_output(self):
-        self.smooth_crossings = []
-
-        for i in self.output_data:
-            elem = i.split("\r\n")
-            elem = list(filter(len, elem))
-            smooth_cross = elem[-1]
-            if smooth_cross.__contains__("ERROR"):
-                self.smooth_crossings.append([])
-            else:
-                n_cross = self.get_n_crossings(smooth_cross.split(" "))
-                c_cross = self.get_c_crossings(smooth_cross.split(" "))
-                self.smooth_crossings.append((n_cross + c_cross).split(" "))
-
-    def get_greatest_gap(self):
-        chain = self.chain_index.get()
-        max = 0
-        for i in self.warning_gaps:
-            if i[0] == chain and int(int(i[2]) - int(i[1])) > max:
-                max = int(int(i[2]) - int(i[1]))
-        return str(max)
-
-    def call_program_for_artifacts(self):
-        self.output_data = []
-        self.is_artifact = True
-        self.stable_lasso.deselect()
-        self.enable_parametrization_of_algorithm()
-        self.user_data = self.generate_invoking_commands()
-
-        for i in self.user_data:
-            self.output_data.append(os.popen(i).read())
-        self.output_data = list(filter(len, self.output_data))
-        print("  Modified data passed to program again and executed...")
 
     def move_files_to_polymer_directory(self):
         self.current_working_dir = system_working_directory
@@ -1700,7 +1619,7 @@ class PyLasso:
                         self.retrieved_trajectory_crossings.append(cross)
 
     def get_crossings_from_trajectory(self, elemlist):
-        if elemlist[1] == "ERROR" or (int(float(elemlist[1])) is 0 and int(float(elemlist[2])) is 0):
+        if elemlist[1] == "ERROR" or (int(float(elemlist[1])) == 0 and int(float(elemlist[2])) == 0):
             return "|"
 
         if self.is_detailed_out.get():
@@ -1711,129 +1630,24 @@ class PyLasso:
             c_crossings = (4 + int(elemlist[1]) + 1,  4 + int(elemlist[1]) + int(elemlist[2]) + 1)
 
         crossings = []
-        if int(float(elemlist[1])) is not 0:
+        if int(float(elemlist[1])) != 0:
             for i in range(n_crossings[0], n_crossings[1]):
                 crossings.append(elemlist[i])
-        if int(float(elemlist[2])) is not 0:
+        if int(float(elemlist[2])) != 0:
             for i in range(c_crossings[0], c_crossings[1]):
                 crossings.append(elemlist[i])
         return crossings
 
     def set_trajectory_analysis_log(self):
-        self.traj_log = Pmw.ScrolledText(self.win_trajectory_analysis_log.interior(), usehullsize=1, hull_width=500,
+        self.traj_log = Pmw.ScrolledText(self.win_trajectory_analysis_log.interior(), usehullsize=1, hull_width=gui_par('TRAJ_LOG'),
                                          hull_height=220)
         self.traj_log.importfile(self.file_with_trajectory)
         self.traj_log.grid(column=1, row=1)
         self.traj_log.configure(text_state='disabled')
 
-    def calculate_lasso_in_trajectory(self):
-        os.popen(self.python_compiler + " " + self._full_path_to_file)
 
-        self.update_trajectory_name("lasso")
-        tmp_filename = self._filename + "_" + self.chains[0] + "_lasso.xyz"
-        self.user_data = [self.program_execution + self._full_path_to_dir + os.sep + tmp_filename + " " +
-                          self.trajectory_chain_loop_indexes[0] + " " + self.trajectory_chain_loop_indexes[1] +
-                          " " + self.get_trajectory_advanced()]
-        self.call_lasso_detection()
-        self.move_files_to_polymer_directory()
+################
 
-    def update_trajectory_name(self, name):
-        for f in os.listdir(self._full_path_to_dir):
-            if f.__contains__(self._filename) and f != self._filename \
-                    and not (f.endswith("_.pdb") or f.endswith("_.xyz") or f.__contains__("_lasso")):
-                os.rename(self._full_path_to_dir + os.sep + f,
-                          self._full_path_to_dir + os.sep + str(f[:-4]) + "_" + name + str(f[-4:]))
-
-    def get_trajectory_advanced(self):
-        adv = ["-f", "2"]
-
-        if len(self.smooth_val.getvalue()) > 0:
-            adv.append("-sm_nr")
-            adv.append(str(self.smooth_val.getvalue()))
-        if self.is_bad_caca_enabled.get():
-            adv.append("-cd")
-            adv.append("0")
-        if not self.is_stable.get():
-            adv.append("-redAC")
-            adv.append(self.min_dist_crossings.getvalue())
-            adv.append("-redBr")
-            adv.append(self.min_dist_cross_end.getvalue())
-            adv.append("-redEnd")
-            adv.append(self.min_dist_cross_loop.getvalue())
-        return " ".join(adv)
-
-    def draw_error_charts(self, text, *charts):
-        chart_lassos_type = mplt.figure.Figure(figsize=(5, 2), dpi=65)
-        chart_lassos_type.subplots_adjust(top=0.92, bottom=0.17, left=0.07, right=0.97)
-        ax = chart_lassos_type.add_subplot(111)
-        ax.annotate(text, xy=(0.5, 0.5), xytext=(0.5, 0.5), ha="center")
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-        for i in charts:
-            canvas = FigureCanvasTkAgg(chart_lassos_type, master=i)
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-            canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-            canvas.show()
-
-    def draw_lassos_type_chart(self):
-        chart_lassos_type = mplt.figure.Figure(figsize=self.traj_charts_size, dpi=90, facecolor="whitesmoke")
-        chart_lassos_type.subplots_adjust(top=0.96, bottom=0.16, left=0.07, right=0.97)
-        ax = chart_lassos_type.add_subplot(111)
-        ax.set_xlabel('Frame')
-        ax.set_ylabel('Lasso type')
-
-        xticks_divider = 140.0 if not self.is_pymol_2 else 100.0
-        xticks_dist = int(ceil(len(self.retrieved_frames) / xticks_divider))
-        self.lasso_info_tuple = {}
-        x_min = float(self.retrieved_frames[0])
-        x_max = float(self.retrieved_frames[-1])
-        tmp_pos = []
-        for idx, elem in enumerate((set(self.retrieved_trajectory_lassos))):
-            try:
-                tmp_pos.append(lassos.index(elem))
-            except Exception:
-                tmp_pos.append(lassos.index('Other'))
-        tmp_pos.sort()
-        for idx, elem in enumerate(tmp_pos):
-            self.lasso_info_tuple[lassos[elem]] = [idx, colors[elem]]
-
-        # configure x and y axis labels and rotation
-        ax.tick_params(axis='both', labelsize=9)
-        for tick in ax.get_xticklabels():
-            tick.set_rotation(50)
-        y_values = [self.lasso_info_tuple[elem][0] for elem in list(self.lasso_info_tuple.keys())]
-        ax.yaxis.set_ticks(y_values)
-        if not self.is_pymol_2:
-            ax.set_xlim([x_min, x_max])
-            ax.set_ylim([-1, len(set(self.retrieved_trajectory_lassos))])
-
-        for elem in list(self.lasso_info_tuple.keys()):
-            pos = y_values.index(self.lasso_info_tuple[elem][0]) # change integer values to string equal to type of lasso
-            y_values[pos] = elem
-        ax.set_yticklabels(y_values)
-
-        # draw chart, where x - frames and y - types of lasso
-        for idx in range(0, len(self.retrieved_frames[:-1]), xticks_dist):
-            if not self.retrieved_trajectory_lassos[idx] == "ERR" and idx < len(self.retrieved_frames[:-1]):
-                try:
-                    color = self.lasso_info_tuple[self.retrieved_trajectory_lassos[idx]][1]
-                    ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple[self.retrieved_trajectory_lassos[idx]][0],
-                            marker="o", c=color, picker=3)
-                except KeyError:
-                    color = self.lasso_info_tuple['Other'][1]
-                    ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple['Other'][0], marker="o", c=color,
-                            picker=3)
-            else:
-                color = self.lasso_info_tuple['ERR'][1]
-                ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple['ERR'][0], marker="o", c=color, picker=3)
-
-        canvas = FigureCanvasTkAgg(chart_lassos_type, master=self.win_lasso_type.interior())
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        canvas.show()
-        self.create_annotations(ax.lines)
-        canvas.mpl_connect('pick_event', self.display_frame_in_pymol_on_pick)
 
     def view_possible_trajectory_loop(self):
         if not cmd.get_names(type="selections").__contains__("sele") and not len(self.output_data):
@@ -2013,58 +1827,6 @@ class PyLasso:
         cmd.show(representation="lines", selection=cmd.get_names(type="objects")[0])
         if self.is_trajectory and len(self.chains) >= 2:
             self.display_first_chain_in_trajectory()
-
-    def draw_atoms_piercing_lasso_chart(self):
-        chart_atoms_piercing = mplt.figure.Figure(figsize=self.traj_charts_size, dpi=90, facecolor="whitesmoke")
-        chart_atoms_piercing.subplots_adjust(top=0.96, bottom=0.16, left=0.06, right=0.97)
-        ax = chart_atoms_piercing.add_subplot(111)
-        ax.set_xlabel('Frame')
-        ax.set_ylabel('Atom index')
-
-        xticks_divider = 140.0 if not self.is_pymol_2 else 100.0
-        xticks_dist = int(ceil(len(self.retrieved_frames) / xticks_divider))
-        y_min = int(float(self.trajectory_chain_range[0]))
-        y_max = int(float(self.trajectory_chain_range[-1]))
-
-        # configure x and y axis labels and rotation
-        ax.tick_params(axis='both', labelsize=9)
-        for tick in ax.get_xticklabels():
-            tick.set_rotation(50)
-
-        # draw chart, where x - frames and y - atom crossing
-        zipped_frames_crossings = list(zip(self.retrieved_frames, self.retrieved_trajectory_crossings))
-        rect_width = 0
-        for idx in range(0, len(self.retrieved_frames[:-1]), xticks_dist):
-            if not zipped_frames_crossings[idx][1].__contains__("|") or zipped_frames_crossings[idx][1] != "|":
-                if not zipped_frames_crossings[idx][1].__contains__("ERR"):
-                    for i in range(len(zipped_frames_crossings[idx][1])):
-                        color = "#008000" if zipped_frames_crossings[idx][1][i][0] == "+" else "#0000FF"
-                        ax.plot(self.retrieved_frames[idx], int(zipped_frames_crossings[idx][1][i][1:]), marker="o",
-                                c=color)
-            elif self.is_pymol_2:
-                ax.plot(self.retrieved_frames[idx], 0, marker="o", c="white", markeredgewidth=0.0)
-            rect_width += 1
-
-        if not self.is_pymol_2:
-            x_min = float(self.retrieved_frames[0])
-            x_max = float(self.retrieved_frames[-1])
-            ax.set_xlim([x_min, x_max])
-            ax.set_ylim([y_max, y_min])
-            # draw orange rectangle
-            rect_x = int(self.trajectory_chain_loop_indexes[0])
-            rect_y = int(self.trajectory_chain_loop_indexes[-1])
-            ax.add_patch(Rectangle((x_min - 1, rect_x), x_max - x_min+2, rect_y - rect_x, facecolor="orange", linewidth=0))
-        else:
-            x_min = int(float(self.retrieved_frames[0]))
-            # draw orange rectangle
-            rect_x = int(self.trajectory_chain_loop_indexes[0])
-            rect_y = int(self.trajectory_chain_loop_indexes[-1])
-            ax.add_patch(Rectangle((x_min, rect_x), rect_width, rect_y - rect_x, facecolor="orange", linewidth=0))
-
-        canvas = FigureCanvasTkAgg(chart_atoms_piercing, master=self.win_atoms_piercing_lasso.interior())
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        canvas.show()
 
     ####################################################################################################################
     #                                   CALCULATE DATA FOR INSERTED FRAME
@@ -2293,7 +2055,7 @@ class PyLasso:
 
         if len(self.output_data) == 0:
             no_lassos = tk.Label(self.window_parent, bg="white", width=14,
-                                 text="No lasso found in a given protein chain.")
+                                 text="No lasso found in a given protein chain .")
             no_lassos.grid(sticky="swen", column=1, columnspan=9, row=0)
             return
 
@@ -2468,7 +2230,7 @@ class PyLasso:
     def get_n_crossings(self, elem):
         n_end_length = ""
 
-        if int(elem[4]) is not 0:
+        if int(elem[4]) != 0:
             for j in range(8, (8 + int(elem[4]))):
                 n_end_length += elem.__getitem__(j) + ", "
         return n_end_length
@@ -2476,7 +2238,7 @@ class PyLasso:
     def get_c_crossings(self, elem):
         c_end_length = ""
 
-        if int(elem[5]) is not 0:
+        if int(elem[5]) != 0:
             for j in range(5 + 2 + 2 + int(elem[4]), 5 + 2 + 2 + int(elem[4]) + int(elem[5])):
                 c_end_length += elem.__getitem__(j) + ", "
         return c_end_length
@@ -2554,7 +2316,7 @@ class PyLasso:
             bridge_img.grid(column=0, row=0, padx=3)
             lasso_img.grid_configure(column=1, row=0, padx=3)
 
-        type_lasso = tk.Text(row_res_elem, bg="white", height=height + 1, width=9, wrap="word", padx=0, pady=0, bd=0,
+        type_lasso = tk.Text(row_res_elem, bg="white", height=height + 1, width=7, wrap="word", padx=0, pady=0, bd=0,
                              highlightthickness=0)
         type_lasso.tag_configure("subscript", offset=-5)
 
@@ -2607,8 +2369,8 @@ class PyLasso:
             self.win_gln_matrices = Pmw.Group(self.window_parent, tag_text="Gaussian Linking Number Matrices "
                                                                            "(entanglement between the loop and the "
                                                                            "tails)")
-            self.win_gln_matrices.grid(sticky="swen", column=0, row=len(self.output_data) + 2, columnspan=9,
-                                       padx=5, pady=4)
+            self.win_gln_matrices.grid(sticky="swen", column=0, row=len(self.output_data) + 2, columnspan=gui_par('GLN_MATRICES_COL_SPAN'),
+                                       padx=5, pady=gui_par('GLN_MATRICES_PADY'))
 
             chain = self.chain_index.get()
             res_beg = self.output_data[self.displayed_lasso].split(" ")[1]
@@ -2623,13 +2385,13 @@ class PyLasso:
                         self._filename + "_" + chain + "_" + res_beg + "_" + res_end + "_t2" + is_smoothed + ".py"
 
             gln_matrix_1 = mplt.figure.Figure(figsize=(self.gln_figsize, self.gln_figsize), dpi=self.gln_dpi,
-                                              facecolor='whitesmoke')
-            ax1 = gln_matrix_1.add_subplot(111, aspect="equal", adjustable='box-forced')
-            gln_matrix_1.subplots_adjust(top=0.97, bottom=0.1, left=0.1, right=0.97)
+                                              facecolor=gui_par('FACECOLOR'))
+            ax1 = gln_matrix_1.add_subplot(111, aspect="equal", adjustable='box')
+            gln_matrix_1.subplots_adjust(top=0.97, bottom=gui_par('GLN_MATRIX_BOTTOM'), left=gui_par('GLN_MATRIX_LEFT'), right=0.97)
             gln_matrix_2 = mplt.figure.Figure(figsize=(self.gln_figsize, self.gln_figsize), dpi=self.gln_dpi,
-                                              facecolor='whitesmoke')
-            ax2 = gln_matrix_2.add_subplot(111, aspect="equal", adjustable='box-forced')
-            gln_matrix_2.subplots_adjust(top=0.97, bottom=0.1, left=0.1, right=0.97)
+                                              facecolor=gui_par('FACECOLOR'))
+            ax2 = gln_matrix_2.add_subplot(111, aspect="equal", adjustable='box')
+            gln_matrix_2.subplots_adjust(top=0.97, bottom=gui_par('GLN_MATRIX_BOTTOM'), left=gui_par('GLN_MATRIX_LEFT'), right=0.97)
 
             is_displayed = [False, False]
             n_end = int(self.array_of_results[self.displayed_lasso][5].get("1.0", 'end-1c'))
@@ -2663,7 +2425,7 @@ class PyLasso:
             canvas = FigureCanvasTkAgg(gln_matrix_1, master=self.win_gln_matrices.interior())
             canvas.get_tk_widget().grid(column=0, row=0)
             canvas._tkcanvas.grid(column=0, row=0)
-            canvas.show()
+            canvas.draw()
             canvas2 = FigureCanvasTkAgg(gln_matrix_2, master=self.win_gln_matrices.interior())
             canvas2.get_tk_widget().grid(column=1, row=0)
             canvas2._tkcanvas.grid(column=1, row=0)
@@ -2678,7 +2440,7 @@ class PyLasso:
                 canvas.mpl_connect('button_press_event', self.show_gln_segment)
             if is_displayed[1]:
                 canvas2.mpl_connect('button_press_event', self.show_gln_segment)
-            canvas2.show()
+            canvas2.draw()
             self.pymol_color_structure_gln()
         else:
             if hasattr(self, "win_gln_matrices") and self.win_gln_matrices.winfo_exists():
@@ -2691,8 +2453,8 @@ class PyLasso:
         ax.get_yaxis().set_visible(False)
 
     def show_gln_segment(self, event):
-        if event.xdata < event.ydata:
-            if self.prev_displayed_gln_segment is not None:
+        if event.xdata and event.ydata and event.xdata < event.ydata:
+            if self.prev_displayed_gln_segment != None:
                 self.decolor_gln_segment()
         self.color_gln_segment(event)
         cmd.deselect()
@@ -2729,7 +2491,7 @@ class PyLasso:
         self.btns_view_details = []
 
         for idx, elem in enumerate(self.output_data):
-            if len(elem) is not 0 and not elem.__contains__("ERROR"):
+            if len(elem) != 0 and not elem.__contains__("ERROR"):
                 self.btns_view_details.append(tk.Button(self.window_parent, text="view details",
                                                         command=lambda x=idx: self.pymol_view_details(x)))
                 self.btns_view_details[-1].grid(column=0, row=1 + idx)
@@ -2848,7 +2610,7 @@ class PyLasso:
         types_of_lassos = [[], []]
         if elem[4] != elem[4 + 3 + int(elem[4]) + 1 + int(elem[5]) + 2]:
             shallow_n_end = []
-            if int(elem[4]) is not 0:
+            if int(elem[4]) != 0:
                 if len(n_end) == 0:
                     types_of_lassos[0] = []
                 else:
@@ -2862,7 +2624,7 @@ class PyLasso:
                 types_of_lassos[1] = []
             else:
                 shallow_c_end = []
-                if int(elem[5]) is not 0:
+                if int(elem[5]) != 0:
                     for j in range(9 + int(elem[4]) + int(elem[5]) + 5 + int(
                             elem[9 + int(elem[4]) + int(elem[5]) + 1]) + 1,
                                    9 + int(elem[4]) + int(elem[5]) + 5 + int(
@@ -3063,7 +2825,7 @@ class PyLasso:
         file_path = self._filename.replace(".", "_")
         if self.is_trajectory:
             frame = self.output_data[chosen_lasso].split(" ")[0].split("_")[-3]
-            if hasattr(self, "given_frames") and len(self.given_frames) is not 0:
+            if hasattr(self, "given_frames") and len(self.given_frames) != 0:
                 file_with_coord = file_path + os.sep + "frame_" + frame + os.sep + "surface_" + self._filename + "_" + \
                                   chain + "__frame_" + frame + "_" + res_beg + "_" + res_end + ".jms"
                 step = int(self.step.getvalue()) if len(self.step.getvalue()) != 0 else 1
@@ -3099,7 +2861,7 @@ class PyLasso:
         cmd.clip(mode="slab", distance="1000")
         cmd.set(name="two_sided_lighting", value=1)
         if self.is_trajectory:
-            if hasattr(self, "given_frames") and len(self.given_frames) is not 0:
+            if hasattr(self, "given_frames") and len(self.given_frames) != 0:
                 pos_frame = self.retrieved_frames.index(frame)
                 self.mark_crossings_on_trajectory(self.retrieved_trajectory_crossings[pos_frame])
             else:
@@ -3114,10 +2876,10 @@ class PyLasso:
     def pymol_display_shallow_lassos(self):
         if self.lasinf_shallow_display.get():
             for idx, l in enumerate(self.lassos):
-                if not len(l[0]) is 0:
+                if not len(l[0]) == 0:
                     txt_elem = self.array_of_results[idx][3]
                     self.color_crossings(txt_elem, l[0], 1, idx)
-                if not len(l[1]) is 0:
+                if not len(l[1]) == 0:
                     txt_elem = self.array_of_results[idx][4]
                     self.color_crossings(txt_elem, l[1], 1, idx)
 
@@ -3147,10 +2909,10 @@ class PyLasso:
             print("  Shallow lassos displayed in PyMOL and in array")
         else:
             for idx, l in enumerate(self.lassos):
-                if not len(l[0]) is 0:
+                if not len(l[0]) == 0:
                     txt_elem = self.array_of_results[idx][3]
                     self.color_crossings(txt_elem, l[0], 0, idx)
-                if not len(l[1]) is 0:
+                if not len(l[1]) == 0:
                     txt_elem = self.array_of_results[idx][4]
                     self.color_crossings(txt_elem, l[1], 0, idx)
 
@@ -3173,7 +2935,7 @@ class PyLasso:
             atom2 = "residue " + res_end + " and name " + atom
             frame = self.output_data[self.displayed_lasso].split(" ")[0].split("_")[-3]
 
-            if hasattr(self, "given_frames") and len(self.given_frames) is not 0:
+            if hasattr(self, "given_frames") and len(self.given_frames) != 0:
                 step = int(self.step.getvalue()) if len(self.step.getvalue()) != 0 else 1
                 pos_frame = self.retrieved_frames.index(frame)
                 cmd.set(name="state", value=(pos_frame + 1) * step)
@@ -3206,7 +2968,7 @@ class PyLasso:
             if not self.is_gln_checkbutton_selected.get() or (hasattr(self, "lasinf_is_gln_selected")
                                                               and not self.lasinf_is_gln_selected.get()):
                 if self.is_trajectory:
-                    if hasattr(self, "given_frames") and len(self.given_frames) is not 0:
+                    if hasattr(self, "given_frames") and len(self.given_frames) != 0:
                         pos_frame = self.retrieved_frames.index(frame)
                         self.mark_crossings_on_trajectory(self.retrieved_trajectory_crossings[pos_frame])
                     else:
@@ -3302,7 +3064,7 @@ class PyLasso:
                                + ")+(SMOOTH_CHAIN_" + chain + " and residue " + res_end + " and name " + atom + ")"
                 frame = self.output_data[self.displayed_lasso].split(" ")[0].split("_")[-3]
 
-                if hasattr(self, "given_frames") and len(self.given_frames) is not 0:
+                if hasattr(self, "given_frames") and len(self.given_frames) != 0:
                     file_with_smooth_vert = file_path + os.sep + "frame_" + frame + os.sep + self._filename + "_" + \
                                             chain + "__frame_" + frame + "_" + res_beg + "_" + res_end + "_smooth.pdb"
                     surface_triang_coord = file_path + os.sep + "frame_" + frame + \
@@ -3380,7 +3142,7 @@ class PyLasso:
                 self.display_gln_objects()
             else:
                 if self.is_trajectory:
-                    if hasattr(self, "given_frames") and len(self.given_frames) is not 0:
+                    if hasattr(self, "given_frames") and len(self.given_frames) != 0:
                         pos_frame = self.retrieved_frames.index(frame)
                         self.mark_crossings_on_trajectory(self.retrieved_trajectory_crossings[pos_frame])
                     else:
@@ -3452,3 +3214,616 @@ class PyLasso:
             return "blue"
         elif c == "-":
             return "green"
+
+
+class PyLassoLinux(PyLassoBase):
+    def __init__(self, app):
+
+        self.parent = app.root
+        if cmd.get_version()[1] < 2.0:
+            self.is_pymol_2 = False
+            self.parent.option_add("*Font", "Arial 10")
+            self.bold_font = Font(family="Arial", size=8, weight="bold")
+            self.subscript_font = Font(family="Arial", size=8)
+            self.row_name_size = "Arial 10"
+            self.hull_width = 1000
+        else:
+            self.is_pymol_2 = True
+            self.parent.option_add("*Font", "Helvetica 9")
+            self.bold_font = Font(family="Helvetica", size=8, weight="bold")
+            self.subscript_font = Font(family="Helvetica", size=8)
+            self.row_name_size = "Helvetica 9"
+            self.hull_width = 1150
+
+        # Trajectory and single structure variables
+        self.screen_height = self.parent.winfo_screenheight()
+        self.screen_width = self.parent.winfo_screenwidth()
+        self._filename = ""
+        self._file_extension = ""
+        self._img_extension = ".png"
+        self.program_execution = plugin_path + os.sep + "detect_lassos "
+        self.python_compiler = [self.get_python_exec(), plugin_path + os.sep + 'convert_pdb_2_5columns.py']
+        self.img_button_height = 22
+        self.img_button_width = 75
+        self.view_btn_width = 3
+        self.extend_clear_btns_width = 4
+        self.retrieve_btns_width = 9
+        self.retrieve_btns_pad = 1
+        self.table_name_width = 14
+        self.gln_figsize = 5
+        self.gln_dpi = 95
+        self.lassos = []
+        self.hint_width = 60
+        # Advanced variables
+        self.is_stable = tk.IntVar()
+        self.is_bad_caca_enabled = tk.IntVar()
+        self.is_gln_checkbutton_selected = tk.IntVar()
+
+        self.previous_bond_in_view = ["", ""]
+
+        self.load_file()
+
+
+    def convert_to_5columns_format(self):
+        self.pdb_bridges = None
+        all_bridges = None
+
+        if self.is_trajectory:
+            all_bridges = subprocess.Popen(self.python_compiler + (self._full_path_to_file + " -f -t").split(" "),
+                                           stdout=subprocess.PIPE).communicate()[0]
+        else:
+            all_bridges = subprocess.Popen(self.python_compiler + [self._full_path_to_file],
+                                           stdout=subprocess.PIPE).communicate()[0].decode('utf-8')
+        all_bridges = all_bridges.splitlines()
+        if self.is_trajectory:
+            self.pdb_bridges = all_bridges
+        else:
+            chain = self.chain_index.get()
+            file_with_bridge = (self._full_path_to_file + "_" + chain)
+
+            all_bridges = list(filter(len, all_bridges))
+            self.pdb_bridges = [i for i in all_bridges if i.__contains__(file_with_bridge) or
+                                                i.__contains__("WARNING")]
+
+    ####################################################################################################################
+    #                                               EXECUTE PROGRAM 2/2
+    ####################################################################################################################
+
+
+    def call_lasso_detection(self):
+        self.output_data = []
+        try:
+            for i in self.user_data:
+                process = subprocess.Popen(i.split(" "), stdout=subprocess.PIPE).communicate()[0]
+                self.output_data.append(process.decode('utf-8'))
+            self.output_data = list(filter(len, self.output_data))
+        except Exception:
+            print("Something went wrong with executable file. Please make sure you changed access permission to " \
+                  "it (can be obtained by typing in console chmod a+x detect_lassos).")
+        print("  Data passed to program and executed...")
+
+    def call_gln_generator(self):
+        iterate_list = self.user_data
+        chain = self.chain_index.get()
+
+        for i in iterate_list:
+            command = i.split(" ")
+            res = [command[2], command[3]]
+            matrix1 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + "_" + \
+                      res[0] + "_" + res[1] + "_t1"
+            matrix2 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + \
+                      "_" + res[0] + "_" + res[1] + "_t2"
+            print(matrix1)
+            print(matrix2)
+            subprocess.Popen(matrix1.split(" "), stdout=subprocess.PIPE).communicate()[0]
+            subprocess.Popen(matrix2.split(" "), stdout=subprocess.PIPE).communicate()[0]
+
+    def separate_smooth_crossings_from_output(self):
+        self.smooth_crossings = []
+
+        for i in self.output_data:
+            elem = i.split("\n")
+            elem = list(filter(len, elem))
+            smooth_cross = elem[-1]
+            if smooth_cross.__contains__("ERROR"):
+                self.smooth_crossings.append([])
+            else:
+                n_cross = self.get_n_crossings(smooth_cross.split(" "))
+                c_cross = self.get_c_crossings(smooth_cross.split(" "))
+                self.smooth_crossings.append((n_cross + c_cross).split(" "))
+
+    def get_greatest_gap(self):
+        chain = self.chain_index.get()
+        max = 0
+        for i in self.warning_gaps:
+            if i[0] == chain and int(int(i[2]) - int(i[1])) > max:
+                max = int(int(i[2]) - int(i[1]))
+        return str(max)
+
+    def call_program_for_artifacts(self):
+        self.output_data = []
+        self.is_artifact = True
+        self.stable_lasso.deselect()
+        self.enable_parametrization_of_algorithm()
+        self.user_data = self.generate_invoking_commands()
+
+        for i in self.user_data:
+            self.output_data.append(subprocess.Popen(i.split(" "), stdout=subprocess.PIPE).communicate()[0].decode('utf-8'))
+        self.output_data = list(filter(len, self.output_data))
+        print("  Modified data passed to program again and executed...")
+
+    ####################################################################################################################
+    #                                     FILL TRAJECTORY WINDOW WITH DATA
+    ####################################################################################################################
+
+    def calculate_lasso_in_trajectory(self):
+        subprocess.Popen(self.python_compiler + [self._full_path_to_file],
+                         stdout=subprocess.PIPE).communicate()[0].splitlines()
+
+        self.update_trajectory_name("lasso")
+        tmp_filename = self._filename + "_" + self.chains[0] + "_lasso.xyz"
+        self.user_data = [self.program_execution + self._full_path_to_dir + os.sep + tmp_filename + " " +
+                          self.trajectory_chain_loop_indexes[0] + " " + self.trajectory_chain_loop_indexes[1] +
+                          " " + self.get_trajectory_advanced()]
+        self.call_lasso_detection()
+        self.move_files_to_polymer_directory()
+
+    def update_trajectory_name(self, name):
+        for f in os.listdir(self._full_path_to_dir):
+            if f.__contains__(self._filename) and f != self._filename \
+                    and not (f.endswith("_.pdb") or f.endswith("_.xyz") or f.__contains__("_lasso")):
+                os.rename(self._full_path_to_dir + os.sep + f,
+                          self._full_path_to_dir + os.sep + f[:-4] + "_" + name + f[-4:])
+
+    def get_trajectory_advanced(self):
+        adv = ["-f", "2"]
+
+        if len(self.smooth_val.getvalue()) > 0:
+            adv.append("-sm_nr")
+            adv.append(str(self.smooth_val.getvalue()))
+        if self.is_bad_caca_enabled.get():
+            adv.append("-cd")
+            adv.append("0")
+        if not self.is_stable.get():
+            adv.append("-redAC")
+            adv.append(self.min_dist_crossings.getvalue())
+            adv.append("-redBr")
+            adv.append(self.min_dist_cross_end.getvalue())
+            adv.append("-redEnd")
+            adv.append(self.min_dist_cross_loop.getvalue())
+        return " ".join(adv)
+
+    def draw_error_charts(self, text, *charts):
+        chart_lassos_type = mplt.figure.Figure(figsize=(5, 2), dpi=65, facecolor=gui_par('FACECOLOR'))
+        chart_lassos_type.subplots_adjust(top=0.92, bottom=0.26, left=0.07, right=0.97)
+        ax = chart_lassos_type.add_subplot(111)
+        ax.annotate(text, xy=(0.5, 0.5), xytext=(0.5, 0.5), ha="center")
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+
+        for i in charts:
+            canvas = FigureCanvasTkAgg(chart_lassos_type, master=i)
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+            canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+            canvas.show()
+
+    def draw_lassos_type_chart(self):
+        chart_lassos_type = mplt.figure.Figure(figsize=(6, 4), dpi=90, facecolor=gui_par('FACECOLOR'))
+        chart_lassos_type.subplots_adjust(top=0.96, bottom=gui_par('CHART_LASSOS_TYPE_BOTTOM'), left=0.07, right=0.98)
+        ax = chart_lassos_type.add_subplot(111)
+        ax.set_xlabel('Frame')
+        ax.set_ylabel('Lasso type')
+
+        xticks_divider = 140.0 if not self.is_pymol_2 else 100.0
+        xticks_dist = int(ceil(len(self.retrieved_frames) / xticks_divider))
+        self.lasso_info_tuple = {}
+        x_min = float(self.retrieved_frames[0])
+        x_max = float(self.retrieved_frames[-1])
+        tmp_pos = []
+        for idx, elem in enumerate((set(self.retrieved_trajectory_lassos))):
+            try:
+                tmp_pos.append(lassos.index(elem))
+            except Exception:
+                tmp_pos.append(lassos.index('Other'))
+        tmp_pos.sort()
+        for idx, elem in enumerate(tmp_pos):
+            self.lasso_info_tuple[lassos[elem]] = [idx, colors[elem]]
+
+        # configure x and y axis labels and rotation
+        ax.tick_params(axis='both', labelsize=9)
+        for tick in ax.get_xticklabels():
+            tick.set_rotation(50)
+        y_values = [self.lasso_info_tuple[elem][0] for elem in list(self.lasso_info_tuple.keys())]
+        ax.yaxis.set_ticks(y_values)
+        ax.set_ylim([-1, len(set(self.retrieved_trajectory_lassos))])
+        for elem in list(self.lasso_info_tuple.keys()):
+            pos = y_values.index(self.lasso_info_tuple[elem][0]) # change integer values to string equal to type of lasso
+            y_values[pos] = elem
+        ax.set_yticklabels(y_values)
+        if not self.is_pymol_2:
+            ax.set_xlim([x_min, x_max])
+            ax.set_ylim([-1, len(set(self.retrieved_trajectory_lassos))])
+
+        # draw chart, where x - frames and y - types of lasso
+        for idx in range(0, len(self.retrieved_frames[:-1]), xticks_dist):
+            if not self.retrieved_trajectory_lassos[idx] == "ERR" and idx < len(self.retrieved_frames[:-1]):
+                try:
+                    color = self.lasso_info_tuple[self.retrieved_trajectory_lassos[idx]][1]
+                    ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple[self.retrieved_trajectory_lassos[idx]][0],
+                            marker="o", c=color, picker=3)
+                except KeyError:
+                    color = self.lasso_info_tuple['Other'][1]
+                    ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple['Other'][0], marker="o", c=color,
+                            picker=3)
+            else:
+                color = self.lasso_info_tuple['ERR'][1]
+                ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple['ERR'][0], marker="o", c=color, picker=3)
+
+        canvas = FigureCanvasTkAgg(chart_lassos_type, master=self.win_lasso_type.interior())
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        canvas.show()
+        self.create_annotations(ax.lines)
+        canvas.mpl_connect('pick_event', self.display_frame_in_pymol_on_pick)
+
+#########
+
+
+    def draw_atoms_piercing_lasso_chart(self):
+        chart_atoms_piercing = mplt.figure.Figure(figsize=(5, 4), dpi=90, facecolor=gui_par('FACECOLOR'))
+        chart_atoms_piercing.subplots_adjust(top=0.96, bottom=gui_par('CHART_ATOMS_PIERCING_BOTTOM'), left=0.06, right=0.98)
+        ax = chart_atoms_piercing.add_subplot(111)
+        ax.set_xlabel('Frame')
+        ax.set_ylabel('Atom index')
+
+        xticks_divider = 140.0 if not self.is_pymol_2 else 100.0
+        xticks_dist = int(ceil(len(self.retrieved_frames) / xticks_divider))
+        y_max = int(float(self.trajectory_chain_range[0]))
+        y_min = int(float(self.trajectory_chain_range[-1]))
+        ax.tick_params(axis='both', labelsize=9)
+        for tick in ax.get_xticklabels():
+            tick.set_rotation(50)
+
+        # draw chart, where x - frames and y - atom crossing
+        zipped_frames_crossings = list(zip(self.retrieved_frames, self.retrieved_trajectory_crossings))
+        rect_width = 0
+        for idx in range(0, len(self.retrieved_frames[:-1]), xticks_dist):
+            if not zipped_frames_crossings[idx][1].__contains__("|") or zipped_frames_crossings[idx][1] != "|":
+                if not zipped_frames_crossings[idx][1].__contains__("ERR"):
+                    for i in range(len(zipped_frames_crossings[idx][1])):
+                        color = "#008000" if zipped_frames_crossings[idx][1][i][0] == "+" else "#0000FF"
+                        ax.plot(self.retrieved_frames[idx], float(zipped_frames_crossings[idx][1][i][1:]), marker="o",
+                                c=color)
+            elif self.is_pymol_2:
+                ax.plot(self.retrieved_frames[idx], 0, marker="o", c="white", markeredgewidth=0.0)
+            rect_width += 1
+
+        if not self.is_pymol_2:
+            x_min = float(self.retrieved_frames[0])
+            x_max = float(self.retrieved_frames[-1])
+            ax.set_xlim([x_min, x_max])
+            ax.set_ylim([y_max, y_min])
+            # draw orange rectangle
+            rect_x = int(self.trajectory_chain_loop_indexes[0])
+            rect_y = int(self.trajectory_chain_loop_indexes[-1])
+            ax.add_patch(
+                Rectangle((x_min - 1, rect_x), x_max - x_min + 2, rect_y - rect_x, facecolor="orange", linewidth=0))
+        else:
+            x_min = int(float(self.retrieved_frames[0]))
+            # draw orange rectangle
+            rect_x = int(self.trajectory_chain_loop_indexes[0])
+            rect_y = int(self.trajectory_chain_loop_indexes[-1])
+            ax.add_patch(Rectangle((x_min, rect_x), rect_width, rect_y - rect_x, facecolor="orange", linewidth=0))
+
+        canvas = FigureCanvasTkAgg(chart_atoms_piercing, master=self.win_atoms_piercing_lasso.interior())
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        canvas.show()
+
+
+class PyLassoWindows(PyLassoBase):
+
+    def get_python_exec(self):
+        if sys.version_info.major == 3:
+            res = os.popen(["python3", "--version"], stdout=subprocess.PIPE).read()
+            if res and res[0].decode('utf-8').find("Python 3") >= 0:
+                return "python3"
+            else:
+                "python"
+        else:
+            "python"
+
+    def convert_to_5columns_format(self):
+        self.pdb_bridges = None
+        all_bridges = None
+
+        if self.is_trajectory:
+            all_bridges = os.popen(self.python_compiler + " " + self._full_path_to_file + " -f -t").read().decode('utf-8')
+        else:
+            all_bridges = os.popen(self.python_compiler + " " + self._full_path_to_file).read().decode('utf-8').splitlines()
+        all_bridges = all_bridges.splitlines()
+        if self.is_trajectory:
+            self.pdb_bridges = all_bridges
+        else:
+            chain = self.chain_index.get()
+            file_with_bridge = (self._full_path_to_file + "_" + chain)
+
+            all_bridges = list(filter(len, all_bridges))
+            self.pdb_bridges = [i for i in all_bridges if i.__contains__(file_with_bridge) or
+                                                i.__contains__("WARNING")]
+
+    def call_lasso_detection(self):
+        self.output_data = []
+        try:
+            for i in self.user_data:
+                process = os.popen(i).read()
+                self.output_data.append(process)
+            self.output_data = list(filter(len, self.output_data))
+        except Exception:
+            print("Something went wrong with executable file. Please make sure you changed access permission to " \
+                  "it (can be obtained by typing in console chmod a+x detect_lassos).")
+        print("  Data passed to program and executed...")
+
+    def call_gln_generator(self):
+        iterate_list = self.user_data
+        chain = self.chain_index.get()
+
+        for i in iterate_list:
+            command = i.split(" ")
+            res = [command[2], command[3]]
+            matrix1 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + "_" + \
+                      res[0] + "_" + res[1] + "_t1"
+            matrix2 = self.python_compiler[0] + " matrixGLNtoPNG_V2.py matrixGLN_" + self._filename + "_" + chain + \
+                      "_" + res[0] + "_" + res[1] + "_t2"
+            os.popen(matrix1)
+            os.popen(matrix2)
+
+    def separate_smooth_crossings_from_output(self):
+        self.smooth_crossings = []
+
+        for i in self.output_data:
+            elem = i.split("\r\n")
+            elem = list(filter(len, elem))
+            smooth_cross = elem[-1]
+            if smooth_cross.__contains__("ERROR"):
+                self.smooth_crossings.append([])
+            else:
+                n_cross = self.get_n_crossings(smooth_cross.split(" "))
+                c_cross = self.get_c_crossings(smooth_cross.split(" "))
+                self.smooth_crossings.append((n_cross + c_cross).split(" "))
+
+    def get_greatest_gap(self):
+        chain = self.chain_index.get()
+        max = 0
+        for i in self.warning_gaps:
+            if i[0] == chain and int(int(i[2]) - int(i[1])) > max:
+                max = int(int(i[2]) - int(i[1]))
+        return str(max)
+
+    def call_program_for_artifacts(self):
+        self.output_data = []
+        self.is_artifact = True
+        self.stable_lasso.deselect()
+        self.enable_parametrization_of_algorithm()
+        self.user_data = self.generate_invoking_commands()
+
+        for i in self.user_data:
+            self.output_data.append(os.popen(i).read())
+        self.output_data = list(filter(len, self.output_data))
+        print("  Modified data passed to program again and executed...")
+
+    ####################################################################################################################
+    #                                     FILL TRAJECTORY WINDOW WITH DATA
+    ####################################################################################################################
+
+    def calculate_lasso_in_trajectory(self):
+        os.popen(self.python_compiler + " " + self._full_path_to_file)
+
+        self.update_trajectory_name("lasso")
+        tmp_filename = self._filename + "_" + self.chains[0] + "_lasso.xyz"
+        self.user_data = [self.program_execution + self._full_path_to_dir + os.sep + tmp_filename + " " +
+                          self.trajectory_chain_loop_indexes[0] + " " + self.trajectory_chain_loop_indexes[1] +
+                          " " + self.get_trajectory_advanced()]
+        self.call_lasso_detection()
+        self.move_files_to_polymer_directory()
+
+    def update_trajectory_name(self, name):
+        for f in os.listdir(self._full_path_to_dir):
+            if f.__contains__(self._filename) and f != self._filename \
+                    and not (f.endswith("_.pdb") or f.endswith("_.xyz") or f.__contains__("_lasso")):
+                os.rename(self._full_path_to_dir + os.sep + f,
+                          self._full_path_to_dir + os.sep + str(f[:-4]) + "_" + name + str(f[-4:]))
+
+    def get_trajectory_advanced(self):
+        adv = ["-f", "2"]
+
+        if len(self.smooth_val.getvalue()) > 0:
+            adv.append("-sm_nr")
+            adv.append(str(self.smooth_val.getvalue()))
+        if self.is_bad_caca_enabled.get():
+            adv.append("-cd")
+            adv.append("0")
+        if not self.is_stable.get():
+            adv.append("-redAC")
+            adv.append(self.min_dist_crossings.getvalue())
+            adv.append("-redBr")
+            adv.append(self.min_dist_cross_end.getvalue())
+            adv.append("-redEnd")
+            adv.append(self.min_dist_cross_loop.getvalue())
+        return " ".join(adv)
+
+    def draw_error_charts(self, text, *charts):
+        chart_lassos_type = mplt.figure.Figure(figsize=(5, 2), dpi=65)
+        chart_lassos_type.subplots_adjust(top=0.92, bottom=0.17, left=0.07, right=0.97)
+        ax = chart_lassos_type.add_subplot(111)
+        ax.annotate(text, xy=(0.5, 0.5), xytext=(0.5, 0.5), ha="center")
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+
+        for i in charts:
+            canvas = FigureCanvasTkAgg(chart_lassos_type, master=i)
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+            canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+            canvas.show()
+
+    def draw_lassos_type_chart(self):
+        chart_lassos_type = mplt.figure.Figure(figsize=self.traj_charts_size, dpi=90, facecolor=gui_par('FACECOLOR'))
+        chart_lassos_type.subplots_adjust(top=0.96, bottom=0.16, left=0.07, right=0.97)
+        ax = chart_lassos_type.add_subplot(111)
+        ax.set_xlabel('Frame')
+        ax.set_ylabel('Lasso type')
+
+        xticks_divider = 140.0 if not self.is_pymol_2 else 100.0
+        xticks_dist = int(ceil(len(self.retrieved_frames) / xticks_divider))
+        self.lasso_info_tuple = {}
+        x_min = float(self.retrieved_frames[0])
+        x_max = float(self.retrieved_frames[-1])
+        tmp_pos = []
+        for idx, elem in enumerate((set(self.retrieved_trajectory_lassos))):
+            try:
+                tmp_pos.append(lassos.index(elem))
+            except Exception:
+                tmp_pos.append(lassos.index('Other'))
+        tmp_pos.sort()
+        for idx, elem in enumerate(tmp_pos):
+            self.lasso_info_tuple[lassos[elem]] = [idx, colors[elem]]
+
+        # configure x and y axis labels and rotation
+        ax.tick_params(axis='both', labelsize=9)
+        for tick in ax.get_xticklabels():
+            tick.set_rotation(50)
+        y_values = [self.lasso_info_tuple[elem][0] for elem in list(self.lasso_info_tuple.keys())]
+        ax.yaxis.set_ticks(y_values)
+        if not self.is_pymol_2:
+            ax.set_xlim([x_min, x_max])
+            ax.set_ylim([-1, len(set(self.retrieved_trajectory_lassos))])
+
+        for elem in list(self.lasso_info_tuple.keys()):
+            pos = y_values.index(self.lasso_info_tuple[elem][0]) # change integer values to string equal to type of lasso
+            y_values[pos] = elem
+        ax.set_yticklabels(y_values)
+
+        # draw chart, where x - frames and y - types of lasso
+        for idx in range(0, len(self.retrieved_frames[:-1]), xticks_dist):
+            if not self.retrieved_trajectory_lassos[idx] == "ERR" and idx < len(self.retrieved_frames[:-1]):
+                try:
+                    color = self.lasso_info_tuple[self.retrieved_trajectory_lassos[idx]][1]
+                    ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple[self.retrieved_trajectory_lassos[idx]][0],
+                            marker="o", c=color, picker=3)
+                except KeyError:
+                    color = self.lasso_info_tuple['Other'][1]
+                    ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple['Other'][0], marker="o", c=color,
+                            picker=3)
+            else:
+                color = self.lasso_info_tuple['ERR'][1]
+                ax.plot(self.retrieved_frames[idx], self.lasso_info_tuple['ERR'][0], marker="o", c=color, picker=3)
+
+        canvas = FigureCanvasTkAgg(chart_lassos_type, master=self.win_lasso_type.interior())
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        canvas.show()
+        self.create_annotations(ax.lines)
+        canvas.mpl_connect('pick_event', self.display_frame_in_pymol_on_pick)
+
+###########
+
+    def draw_atoms_piercing_lasso_chart(self):
+        chart_atoms_piercing = mplt.figure.Figure(figsize=self.traj_charts_size, dpi=90, facecolor=gui_par('FACECOLOR'))
+        chart_atoms_piercing.subplots_adjust(top=0.96, bottom=0.16, left=0.06, right=0.97)
+        ax = chart_atoms_piercing.add_subplot(111)
+        ax.set_xlabel('Frame')
+        ax.set_ylabel('Atom index')
+
+        xticks_divider = 140.0 if not self.is_pymol_2 else 100.0
+        xticks_dist = int(ceil(len(self.retrieved_frames) / xticks_divider))
+        y_min = int(float(self.trajectory_chain_range[0]))
+        y_max = int(float(self.trajectory_chain_range[-1]))
+
+        # configure x and y axis labels and rotation
+        ax.tick_params(axis='both', labelsize=9)
+        for tick in ax.get_xticklabels():
+            tick.set_rotation(50)
+
+        # draw chart, where x - frames and y - atom crossing
+        zipped_frames_crossings = list(zip(self.retrieved_frames, self.retrieved_trajectory_crossings))
+        rect_width = 0
+        for idx in range(0, len(self.retrieved_frames[:-1]), xticks_dist):
+            if not zipped_frames_crossings[idx][1].__contains__("|") or zipped_frames_crossings[idx][1] != "|":
+                if not zipped_frames_crossings[idx][1].__contains__("ERR"):
+                    for i in range(len(zipped_frames_crossings[idx][1])):
+                        color = "#008000" if zipped_frames_crossings[idx][1][i][0] == "+" else "#0000FF"
+                        ax.plot(self.retrieved_frames[idx], int(zipped_frames_crossings[idx][1][i][1:]), marker="o",
+                                c=color)
+            elif self.is_pymol_2:
+                ax.plot(self.retrieved_frames[idx], 0, marker="o", c="white", markeredgewidth=0.0)
+            rect_width += 1
+
+        if not self.is_pymol_2:
+            x_min = float(self.retrieved_frames[0])
+            x_max = float(self.retrieved_frames[-1])
+            ax.set_xlim([x_min, x_max])
+            ax.set_ylim([y_max, y_min])
+            # draw orange rectangle
+            rect_x = int(self.trajectory_chain_loop_indexes[0])
+            rect_y = int(self.trajectory_chain_loop_indexes[-1])
+            ax.add_patch(Rectangle((x_min - 1, rect_x), x_max - x_min+2, rect_y - rect_x, facecolor="orange", linewidth=0))
+        else:
+            x_min = int(float(self.retrieved_frames[0]))
+            # draw orange rectangle
+            rect_x = int(self.trajectory_chain_loop_indexes[0])
+            rect_y = int(self.trajectory_chain_loop_indexes[-1])
+            ax.add_patch(Rectangle((x_min, rect_x), rect_width, rect_y - rect_x, facecolor="orange", linewidth=0))
+
+        canvas = FigureCanvasTkAgg(chart_atoms_piercing, master=self.win_atoms_piercing_lasso.interior())
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        canvas.show()
+
+
+
+class PyLassoDarwin(PyLassoLinux):
+        def __init__(self, app):
+
+            self.parent = app.root
+            if cmd.get_version()[1] < 2.0:
+                self.is_pymol_2 = False
+                # self.parent.option_add("*Font", "Arial 10")
+                self.bold_font = Font(family="Helvetica", size=11, weight="bold")
+                self.subscript_font = Font(family="Helvetica", size=9)
+                self.row_name_size = "Helvetica 13"
+                self.hull_width = 1000
+            else:
+                self.is_pymol_2 = True
+                self.parent.option_add("*Font", "Helvetica 10")
+                self.bold_font = Font(family="Helvetica", size=9, weight="bold")
+                self.subscript_font = Font(family="Helvetica", size=9)
+                self.row_name_size = "Helvetica 10"
+                self.hull_width = 1150
+
+            # Trajectory and single structure variables
+            self.screen_height = self.parent.winfo_screenheight()
+            self.screen_width = self.parent.winfo_screenwidth()
+            self._filename = ""
+            self._file_extension = ""
+            self._img_extension = ".gif"
+            self.program_execution = plugin_path + os.sep + "detect_lassos "
+            self.python_compiler = [plugin_path + os.sep + 'convert_pdb_2_5columns.py']
+            self.img_button_height = 22
+            self.img_button_width = 75
+            self.view_btn_width = 3
+            self.extend_clear_btns_width = 4
+            self.retrieve_btns_width = 9
+            self.retrieve_btns_pad = 1
+            self.table_name_width = 14
+            self.gln_figsize = 5
+            self.gln_dpi = 98
+            self.lassos = []
+            self.hint_width = 60
+            # Advanced variables
+            self.is_stable = tk.IntVar()
+            self.is_bad_caca_enabled = tk.IntVar()
+            self.is_gln_checkbutton_selected = tk.IntVar()
+
+            self.previous_bond_in_view = ["", ""]
+
+            self.load_file()
