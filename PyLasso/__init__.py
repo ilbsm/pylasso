@@ -14,8 +14,7 @@
 # OTHER TORTUOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 # ----------------------------------------------------------------------
-
-
+import os.path
 import re
 import subprocess
 import shutil
@@ -34,7 +33,7 @@ except:
     print("  ### Graphic libraries not found. Please install them (Tkinter and Pmw) and re-run the plugin.")
 try:
     import matplotlib as mplt
-    mplt.use('TKAgg')
+    #mplt.use('TKAgg')
 except Exception as e:
     print("  ### Matplotlib library not found. Please install it and re-run the plugin." + str(e))
 try:
@@ -1378,17 +1377,17 @@ class PyLassoBase:
     def move_files_to_polymer_directory(self):
         self.current_working_dir = self._full_path_to_dir if platform.system() == 'Windows' else system_working_directory
         directory = self.create_polymer_directory(self._filename.replace(".", "_"))
-        directory_in_workspace = self._full_path_to_dir + os.sep + directory
+        directory_in_workspace = os.path.join(self._full_path_to_dir, directory)
 
         os.chdir(directory_in_workspace)
 
         if self.is_gln_checkbutton_selected.get():
-            self.separate_files_to_directory(self.current_working_dir, directory_in_workspace + os.sep + "_GLN", "matrixGLN_")
-        self.separate_files_to_directory(self.current_working_dir, directory_in_workspace + os.sep + "_barycentric",
+            self.separate_files_to_directory(self._full_path_to_dir, os.path.join(directory_in_workspace, "_GLN"), "matrixGLN_")
+        self.separate_files_to_directory(self._full_path_to_dir, os.path.join(directory_in_workspace, "_barycentric"),
                                          "barycentric_", "F_PYsvgBari_")
-        self.separate_files_to_directory(self.current_working_dir,  directory_in_workspace + os.sep + "_surfaces", "surface_")
-        self.separate_files_to_directory(self.current_working_dir,  directory_in_workspace + os.sep + "_smooth", "_smooth.pdb")
-        self.separate_files_to_directory(self._full_path_to_dir,  directory_in_workspace + os.sep, self._filename + "_")
+        self.separate_files_to_directory(self._full_path_to_dir,  os.path.join(directory_in_workspace, "_surfaces"), "surface_")
+        self.separate_files_to_directory(self._full_path_to_dir,  os.path.join(directory_in_workspace, "_smooth"), "_smooth.pdb")
+        self.separate_files_to_directory(self._full_path_to_dir,  directory_in_workspace, self._filename + "_")
         os.chdir(self.current_working_dir)
         print("  Resulting files moved to separate directories...")
 
@@ -1405,7 +1404,6 @@ class PyLassoBase:
     def separate_files_to_directory(self, source, target, *files):
         if not os.path.exists(target):
             os.makedirs(target)
-
         for filename in os.listdir(source):
             for arg in files:
                 if filename.__contains__(arg):
@@ -3302,20 +3300,20 @@ class PyLassoLinux(PyLassoBase):
         print("  Data passed to program and executed...")
 
     def call_gln_generator(self):
-        iterate_list = self.user_data
-        chain = self.chain_index.get()
-
-        for i in iterate_list:
-            command = i.split(" ")
-            res = [command[2], command[3]]
-            matrix1 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + "_" + \
-                      res[0] + "_" + res[1] + "_t1"
-            matrix2 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + \
-                      "_" + res[0] + "_" + res[1] + "_t2"
-            print(matrix1)
-            print(matrix2)
-            subprocess.Popen(matrix1.split(" "), stdout=subprocess.PIPE).communicate()[0]
-            subprocess.Popen(matrix2.split(" "), stdout=subprocess.PIPE).communicate()[0]
+        #TODO - this script doesn't work at all - by Pawel Rubach
+        return
+        # iterate_list = self.user_data
+        # chain = self.chain_index.get()
+        #
+        # for i in iterate_list:
+        #     command = i.split(" ")
+        #     res = [command[2], command[3]]
+        #     matrix1 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + "_" + \
+        #               res[0] + "_" + res[1] + "_t1"
+        #     matrix2 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + \
+        #               "_" + res[0] + "_" + res[1] + "_t2"
+        #     subprocess.Popen(matrix1.split(" "), stdout=subprocess.PIPE).communicate()[0]
+        #     subprocess.Popen(matrix2.split(" "), stdout=subprocess.PIPE).communicate()[0]
 
     def separate_smooth_crossings_from_output(self):
         self.smooth_crossings = []
@@ -3404,7 +3402,7 @@ class PyLassoLinux(PyLassoBase):
             canvas = FigureCanvasTkAgg(chart_lassos_type, master=i)
             canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
             canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-            canvas.show()
+            canvas.draw()
 
     def draw_lassos_type_chart(self):
         chart_lassos_type = mplt.figure.Figure(figsize=(6, 4), dpi=90, facecolor=gui_par('FACECOLOR'))
@@ -3461,7 +3459,7 @@ class PyLassoLinux(PyLassoBase):
         canvas = FigureCanvasTkAgg(chart_lassos_type, master=self.win_lasso_type.interior())
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
         canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        canvas.show()
+        canvas.draw()
         self.create_annotations(ax.lines)
         canvas.mpl_connect('pick_event', self.display_frame_in_pymol_on_pick)
 
@@ -3517,7 +3515,7 @@ class PyLassoLinux(PyLassoBase):
         canvas = FigureCanvasTkAgg(chart_atoms_piercing, master=self.win_atoms_piercing_lasso.interior())
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
         canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        canvas.show()
+        canvas.draw()
 
 
 class PyLassoWindows(PyLassoBase):
@@ -3593,7 +3591,8 @@ class PyLassoWindows(PyLassoBase):
 
             all_bridges = list(filter(len, all_bridges))
             self.pdb_bridges = [i for i in all_bridges if i.__contains__(file_with_bridge) or
-                                                i.__contains__("WARNING")]
+                                i.__contains__("WARNING")]
+
 
     def call_lasso_detection(self):
         self.output_data = []
@@ -3608,18 +3607,20 @@ class PyLassoWindows(PyLassoBase):
         print("  Data passed to program and executed...")
 
     def call_gln_generator(self):
-        iterate_list = self.user_data
-        chain = self.chain_index.get()
-
-        for i in iterate_list:
-            command = i.split(" ")
-            res = [command[2], command[3]]
-            matrix1 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + "_" + \
-                      res[0] + "_" + res[1] + "_t1"
-            matrix2 = self.python_compiler[0] + " matrixGLNtoPNG_V2.py matrixGLN_" + self._filename + "_" + chain + \
-                      "_" + res[0] + "_" + res[1] + "_t2"
-            os.popen(matrix1)
-            os.popen(matrix2)
+        # TODO - this script doesn't work at all - by Pawel Rubach
+        return
+        # iterate_list = self.user_data
+        # chain = self.chain_index.get()
+        #
+        # for i in iterate_list:
+        #     command = i.split(" ")
+        #     res = [command[2], command[3]]
+        #     matrix1 = self.python_compiler[0] + " matrixGLNtoPNG.py matrixGLN_" + self._filename + "_" + chain + "_" + \
+        #               res[0] + "_" + res[1] + "_t1"
+        #     matrix2 = self.python_compiler[0] + " matrixGLNtoPNG_V2.py matrixGLN_" + self._filename + "_" + chain + \
+        #               "_" + res[0] + "_" + res[1] + "_t2"
+        #     os.popen(matrix1)
+        #     os.popen(matrix2)
 
     def separate_smooth_crossings_from_output(self):
         self.smooth_crossings = []
@@ -3707,7 +3708,7 @@ class PyLassoWindows(PyLassoBase):
             canvas = FigureCanvasTkAgg(chart_lassos_type, master=i)
             canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
             canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-            canvas.show()
+            canvas.draw()
 
     def draw_lassos_type_chart(self):
         chart_lassos_type = mplt.figure.Figure(figsize=self.traj_charts_size, dpi=90, facecolor=gui_par('FACECOLOR'))
@@ -3764,7 +3765,7 @@ class PyLassoWindows(PyLassoBase):
         canvas = FigureCanvasTkAgg(chart_lassos_type, master=self.win_lasso_type.interior())
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
         canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        canvas.show()
+        canvas.draw()
         self.create_annotations(ax.lines)
         canvas.mpl_connect('pick_event', self.display_frame_in_pymol_on_pick)
 
@@ -3820,7 +3821,7 @@ class PyLassoWindows(PyLassoBase):
         canvas = FigureCanvasTkAgg(chart_atoms_piercing, master=self.win_atoms_piercing_lasso.interior())
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
         canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        canvas.show()
+        canvas.draw()
 
 
 
