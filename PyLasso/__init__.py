@@ -397,7 +397,7 @@ class PyLassoBase:
                 self.bridge_found.withdraw()
             print("  PyLasso has been shut down...")
 
-####################################################################################################################
+    ####################################################################################################################
     #                                            INITIALISE INTERFACE
     ####################################################################################################################
 
@@ -1121,7 +1121,7 @@ class PyLassoBase:
 
 
 
- ####################################################################################################################
+    ####################################################################################################################
     #                                               EXECUTE PROGRAM 1/2
     ####################################################################################################################
 
@@ -1182,7 +1182,7 @@ class PyLassoBase:
         if hasattr(self, "error_pop_menu") and self.error_popup.winfo_exists():
             self.error_popup.withdraw()
 
-####################################################################################################################
+    ####################################################################################################################
     #                                               1) GET PLUGIN DATA
     ####################################################################################################################
 
@@ -1376,20 +1376,19 @@ class PyLassoBase:
 
 
     def move_files_to_polymer_directory(self):
-        self.current_working_dir = system_working_directory
+        self.current_working_dir = self._full_path_to_dir if platform.system() == 'Windows' else system_working_directory
         directory = self.create_polymer_directory(self._filename.replace(".", "_"))
         directory_in_workspace = self._full_path_to_dir + os.sep + directory
 
         os.chdir(directory_in_workspace)
 
         if self.is_gln_checkbutton_selected.get():
-            self.separate_files_to_directory(self.current_working_dir, os.getcwd() + os.sep + "_GLN", "matrixGLN_")
-        self.separate_files_to_directory(self.current_working_dir, os.getcwd() + os.sep + "_barycentric",
+            self.separate_files_to_directory(self.current_working_dir, directory_in_workspace + os.sep + "_GLN", "matrixGLN_")
+        self.separate_files_to_directory(self.current_working_dir, directory_in_workspace + os.sep + "_barycentric",
                                          "barycentric_", "F_PYsvgBari_")
-        self.separate_files_to_directory(self.current_working_dir, os.getcwd() + os.sep + "_surfaces", "surface_")
-        self.separate_files_to_directory(self.current_working_dir, os.getcwd() + os.sep + "_smooth", "_smooth.pdb")
-        self.separate_files_to_directory(self.current_working_dir,  os.getcwd() + os.sep, self._filename + "_")
-        self.separate_files_to_directory(self._full_path_to_dir, os.getcwd() + os.sep, self._filename + "_")
+        self.separate_files_to_directory(self.current_working_dir,  directory_in_workspace + os.sep + "_surfaces", "surface_")
+        self.separate_files_to_directory(self.current_working_dir,  directory_in_workspace + os.sep + "_smooth", "_smooth.pdb")
+        self.separate_files_to_directory(self._full_path_to_dir,  directory_in_workspace + os.sep, self._filename + "_")
         os.chdir(self.current_working_dir)
         print("  Resulting files moved to separate directories...")
 
@@ -3294,7 +3293,7 @@ class PyLassoLinux(PyLassoBase):
         self.output_data = []
         try:
             for i in self.user_data:
-                process = subprocess.Popen(i.split(" "), stdout=subprocess.PIPE).communicate()[0]
+                process = subprocess.Popen(i.split(" "), cwd=self._full_path_to_dir, stdout=subprocess.PIPE).communicate()[0]
                 self.output_data.append(process.decode('utf-8'))
             self.output_data = list(filter(len, self.output_data))
         except Exception:
@@ -3571,7 +3570,7 @@ class PyLassoWindows(PyLassoBase):
     def get_python_exec(self):
         if sys.version_info.major == 3:
             res = os.popen(["python3", "--version"], stdout=subprocess.PIPE).read()
-            if res and res[0].decode('utf-8').find("Python 3") >= 0:
+            if res and res[0].find("Python 3") >= 0:
                 return "python3"
             else:
                 "python"
@@ -3583,10 +3582,9 @@ class PyLassoWindows(PyLassoBase):
         all_bridges = None
 
         if self.is_trajectory:
-            all_bridges = os.popen(self.python_compiler + " " + self._full_path_to_file + " -f -t").read().decode('utf-8')
+            all_bridges = os.popen(self.python_compiler + " " + self._full_path_to_file + " -f -t").read()
         else:
-            all_bridges = os.popen(self.python_compiler + " " + self._full_path_to_file).read().decode('utf-8').splitlines()
-        all_bridges = all_bridges.splitlines()
+            all_bridges = os.popen(self.python_compiler + " " + self._full_path_to_file).read().splitlines()
         if self.is_trajectory:
             self.pdb_bridges = all_bridges
         else:
@@ -3601,8 +3599,8 @@ class PyLassoWindows(PyLassoBase):
         self.output_data = []
         try:
             for i in self.user_data:
-                process = os.popen(i).read()
-                self.output_data.append(process)
+                process = subprocess.Popen(i.split(" "), cwd=self._full_path_to_dir, stdout=subprocess.PIPE).communicate()[0]
+                self.output_data.append(process.decode('utf-8'))
             self.output_data = list(filter(len, self.output_data))
         except Exception:
             print("Something went wrong with executable file. Please make sure you changed access permission to " \
